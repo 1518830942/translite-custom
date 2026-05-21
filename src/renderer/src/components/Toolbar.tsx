@@ -16,7 +16,7 @@ export default function Toolbar({ theme, onToggleTheme, alwaysOnTop, onToggleAlw
       <div className="flex items-center gap-2">
         <button
           onClick={onToggleAlwaysOnTop}
-          className={`p-1.5 rounded ${alwaysOnTop ? 'bg-accent text-white' : 'text-secondary hover:text-primary hover:bg-muted'}`}
+          className={`p-1.5 rounded ${alwaysOnTop ? 'bg-accent text-on-accent' : 'text-secondary hover:text-primary hover:bg-muted'}`}
           title="置顶"
           aria-label="置顶"
         >

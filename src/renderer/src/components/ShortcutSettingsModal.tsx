@@ -53,7 +53,7 @@ export default function ShortcutSettingsModal({ value, onSave, onClose }: Shortc
           <button
             onClick={handleSave}
             disabled={!canSave}
-            className="text-sm text-primary bg-accent hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed px-3 py-1.5 rounded"
+            className="text-sm text-on-accent bg-accent hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed px-3 py-1.5 rounded"
           >
             保存
           </button>

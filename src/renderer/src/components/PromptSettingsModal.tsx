@@ -89,7 +89,7 @@ export default function PromptSettingsModal({ title, storeKey, onClose }: Prompt
           <button
             onClick={handleSave}
             disabled={!prompt.trim()}
-            className="text-sm text-primary bg-accent hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed px-3 py-1.5 rounded"
+            className="text-sm text-on-accent bg-accent hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed px-3 py-1.5 rounded"
           >
             保存
           </button>

@@ -79,7 +79,7 @@ export default function LanguageSettingsModal({ value, onSave, onClose }: Langua
           </button>
           <button
             onClick={handleSave}
-            className="text-sm text-primary bg-accent hover:bg-accent-hover px-3 py-1.5 rounded"
+            className="text-sm text-on-accent bg-accent hover:bg-accent-hover px-3 py-1.5 rounded"
           >
             保存
           </button>
