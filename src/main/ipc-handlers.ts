@@ -1,17 +1,25 @@
 import { ipcMain, BrowserWindow } from 'electron'
 import Store from 'electron-store'
-import { getSource, getAllSources } from './translate'
+import { translate } from './translate'
+import { defaultTranslatePrompt, defaultPolishPrompt, defaultExplainPrompt } from './translate'
 
 type CloseBehavior = 'tray' | 'quit'
 
 const store = new Store()
 const activeControllers = new Map<string, AbortController>()
 
+function initializeDefaultPrompts() {
+  if (!store.get('translatePrompt')) store.set('translatePrompt', defaultTranslatePrompt)
+  if (!store.get('polishPrompt')) store.set('polishPrompt', defaultPolishPrompt)
+  if (!store.get('explainPrompt')) store.set('explainPrompt', defaultExplainPrompt)
+}
+
 export function registerIpcHandlers(
   mainWindow: BrowserWindow,
   closeWindow: (behavior?: CloseBehavior) => void,
   registerGlobalShortcut: (shortcut: string) => string | null,
 ) {
+  initializeDefaultPrompts()
   ipcMain.handle('store:get', (_event, key: string) => {
     return store.get(key, null)
   })
@@ -36,26 +44,16 @@ export function registerIpcHandlers(
     return registerGlobalShortcut(shortcut)
   })
 
-  ipcMain.handle('translate:sources', () => {
-    return getAllSources()
-  })
-
-  ipcMain.on('translate:start', async (event, { id, text, from, to }) => {
-    const sourceId = store.get('translateSource', 'openai-compatible') as string
-    const source = getSource(sourceId)
-    if (!source) {
-      event.sender.send('translate:error', { id, error: `Unknown source: ${sourceId}` })
-      return
-    }
-
+  ipcMain.on('translate:start', async (event, { id, text, from, to, mode }) => {
     const controller = new AbortController()
     activeControllers.set(id, controller)
 
     try {
-      await source.translate({
+      await translate({
         text,
         from,
         to,
+        mode: mode || 'translate',
         signal: controller.signal,
         onChunk: (chunk) => {
           event.sender.send('translate:chunk', { id, chunk })

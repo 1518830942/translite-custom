@@ -3,9 +3,10 @@ export function translateStream(
   from: string,
   to: string,
   onChunk: (chunk: string) => void,
+  mode?: string,
 ): Promise<string> {
   return new Promise((resolve, reject) => {
-    const id = window.api.translate.start(text, from, to)
+    const id = window.api.translate.start(text, from, to, mode)
 
     let result = ''
 

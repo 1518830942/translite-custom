@@ -11,7 +11,7 @@
 ## Module Index
 
 - Electron Main: 窗口管理, 全局快捷键, IPC 通信, 翻译引擎
-- UI Components: 输入面板, 结果面板, 工具栏, 设置弹窗
+- UI Components: 输入面板, 结果面板, 工具栏, 设置弹窗, 提示词配置弹窗
 - Lib: 语言检测, 翻译调用, 设置存储
 - Build/Release: Windows 安装包构建与发布
 
@@ -49,18 +49,18 @@
 
 ### 翻译引擎
 
-- Description: 可插拔翻译源架构，当前内置 AI 翻译源（OpenAI 兼容 API），支持任意兼容 OpenAI Chat Completions API 的服务（DeepSeek、OpenAI 等），SSE 流式返回翻译结果
-- Entry: `src/main/translate/index.ts`（注册表）, `src/main/ipc-handlers.ts:35`（translate:start handler）
-- Core: `src/main/translate/sources/openai-compatible.ts`（OpenAI Compatible 实现：fetch + SSE 解析）
-- Notes: store 键 `apiBaseURL`（到 /v1）、`apiKey`、`apiModel`；默认源 id `openai-compatible`；支持中/英/日/韩/法/德语言名称映射；AbortController 支持取消
+- Description: 可插拔翻译源架构，当前内置 AI 翻译源（OpenAI 兼容 API），支持翻译/润色/解释三种模式，SSE 流式返回结果；三种模式的系统提示词均可配置，使用 `{{变量名}}` 模板语法
+- Entry: `src/main/translate/index.ts`（注册表）, `src/main/ipc-handlers.ts`（translate:start handler + 提示词初始化）
+- Core: `src/main/translate/sources/openai-compatible.ts`（OpenAI Compatible 实现：fetch + SSE 解析、mode 分发、模板变量渲染）, `src/main/translate/types.ts`（TranslateMode 类型）
+- Notes: store 键 `apiBaseURL`、`apiKey`、`apiModel`、`translatePrompt`、`polishPrompt`、`explainPrompt`；默认源 id `openai-compatible`；`translate:start` IPC 传递 `mode` 字段；模板变量包括 `{{from}}`、`{{to}}`、`{{fromName}}`、`{{toName}}`、`{{greetingFrom}}`、`{{greetingTo}}`；应用启动时自动初始化默认提示词
 
 ## UI Components
 
 ### 输入面板
 
-- Description: textarea 输入区，Enter 或右下角按钮触发翻译，空白内容和翻译中不触发
+- Description: textarea 输入区，右下角三个图标按钮（翻译/润色/解释），hover 显示说明，空白内容和处理中不触发
 - Entry: `src/renderer/src/components/InputPanel.tsx`
-- Core: `src/renderer/src/App.tsx:87` (使用处)
+- Core: `src/renderer/src/App.tsx` (`handleSubmit` 接收 mode 参数)
 
 ### 结果面板
 
@@ -76,7 +76,7 @@
 
 ### 标题栏
 
-- Description: 可拖拽标题栏 + 左上角菜单（设置 API、设置语言、设置快捷键、设置关闭行为、退出应用）+ 关闭按钮
+- Description: 可拖拽标题栏 + 左上角菜单（设置翻译源、设置互译语言、设置翻译/润色/解释提示词、设置快捷键、设置关闭行为、退出应用）+ 关闭按钮
 - Entry: `src/renderer/src/components/TitleBar.tsx`
 
 ### 语言设置弹窗
@@ -97,6 +97,12 @@
 - Entry: `src/renderer/src/components/SettingsModal.tsx`
 - Core: `src/renderer/src/App.tsx`（读取/保存 `apiBaseURL`、`apiKey`、`apiModel`）
 
+### 提示词配置弹窗
+
+- Description: 翻译/润色/解释三种模式的系统提示词编辑弹窗，无边框编辑器 + `{{变量名}}` 模板高亮 + 自定义滚动条，编辑器大小随窗口自适应；组件自行从 store 加载/保存提示词
+- Entry: `src/renderer/src/components/PromptSettingsModal.tsx`
+- Core: `src/renderer/src/App.tsx`（三个弹窗的显示控制），`src/renderer/src/styles/index.css`（`.highlight-editor` 滚动条样式）
+
 ## Lib
 
 ### 语言检测
@@ -106,7 +112,7 @@
 
 ### 翻译调用
 
-- Description: 封装 `window.api.translate` 的流式调用，回调 onChunk
+- Description: 封装 `window.api.translate` 的流式调用，支持 `mode` 参数（translate/polish/explain），回调 onChunk
 - Entry: `src/renderer/src/lib/translate.ts`
 
 ### 设置存储

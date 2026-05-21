@@ -2,9 +2,9 @@ import { contextBridge, ipcRenderer } from 'electron'
 
 contextBridge.exposeInMainWorld('api', {
   translate: {
-    start: (text: string, from: string, to: string) => {
+    start: (text: string, from: string, to: string, mode?: string) => {
       const id = Math.random().toString(36).slice(2)
-      ipcRenderer.send('translate:start', { id, text, from, to })
+      ipcRenderer.send('translate:start', { id, text, from, to, mode })
       return id
     },
     onChunk: (id: string, callback: (chunk: string) => void) => {
@@ -29,7 +29,6 @@ contextBridge.exposeInMainWorld('api', {
       return () => { ipcRenderer.removeListener('translate:error', listener) }
     },
     abort: (id: string) => { ipcRenderer.send('translate:abort', id) },
-    getSources: () => ipcRenderer.invoke('translate:sources'),
   },
   store: {
     get: (key: string) => ipcRenderer.invoke('store:get', key),

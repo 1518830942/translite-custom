@@ -7,11 +7,13 @@ import SettingsModal, { type ApiConfig } from './components/SettingsModal'
 import CloseBehaviorModal from './components/CloseBehaviorModal'
 import LanguageSettingsModal, { type LanguageCode, type LanguagePair } from './components/LanguageSettingsModal'
 import ShortcutSettingsModal from './components/ShortcutSettingsModal'
+import PromptSettingsModal from './components/PromptSettingsModal'
 import { translateStream } from './lib/translate'
 import { getStore, setStore } from './lib/store'
 import { useTheme } from './lib/useTheme'
 
 type CloseBehavior = 'tray' | 'quit'
+type TranslateMode = 'translate' | 'polish' | 'explain'
 
 const defaultLanguagePair: LanguagePair = { source: 'zh', target: 'en' }
 const defaultShortcut = 'Alt+1'
@@ -53,6 +55,9 @@ export default function App() {
   const [closeBehaviorLoaded, setCloseBehaviorLoaded] = useState(false)
   const [apiConfig, setApiConfig] = useState<ApiConfig>({ baseURL: '', apiKey: '', model: '' })
   const [shortcut, setShortcut] = useState(defaultShortcut)
+  const [showTranslatePromptSettings, setShowTranslatePromptSettings] = useState(false)
+  const [showPolishPromptSettings, setShowPolishPromptSettings] = useState(false)
+  const [showExplainPromptSettings, setShowExplainPromptSettings] = useState(false)
   const { theme, toggleTheme } = useTheme()
 
   useEffect(() => {
@@ -90,7 +95,7 @@ export default function App() {
     })
   }, [])
 
-  const handleSubmit = useCallback(() => {
+  const handleSubmit = useCallback((mode: TranslateMode = 'translate') => {
     if (!input.trim() || loading) return
     setResult('')
     setError(null)
@@ -104,7 +109,7 @@ export default function App() {
 
     translateStream(input, languagePair.source, languagePair.target, (chunk) => {
       setResult((prev) => prev + chunk)
-    })
+    }, mode)
       .then(() => setLoading(false))
       .catch((err) => {
         setError(err.message)
@@ -176,6 +181,9 @@ export default function App() {
         onOpenLanguageSettings={() => setShowLanguageSettings(true)}
         onOpenShortcutSettings={() => setShowShortcutSettings(true)}
         onOpenCloseBehavior={() => { setCloseBehaviorAction('settings'); setShowCloseBehavior(true) }}
+        onOpenTranslatePromptSettings={() => setShowTranslatePromptSettings(true)}
+        onOpenPolishPromptSettings={() => setShowPolishPromptSettings(true)}
+        onOpenExplainPromptSettings={() => setShowExplainPromptSettings(true)}
         onClose={handleClose}
         onQuit={() => window.api.window.quit()}
       />
@@ -215,6 +223,27 @@ export default function App() {
           value={closeBehavior}
           onSelect={handleSelectCloseBehavior}
           onCancel={() => setShowCloseBehavior(false)}
+        />
+      )}
+      {showTranslatePromptSettings && (
+        <PromptSettingsModal
+          title="设置翻译提示词"
+          storeKey="translatePrompt"
+          onClose={() => setShowTranslatePromptSettings(false)}
+        />
+      )}
+      {showPolishPromptSettings && (
+        <PromptSettingsModal
+          title="设置润色提示词"
+          storeKey="polishPrompt"
+          onClose={() => setShowPolishPromptSettings(false)}
+        />
+      )}
+      {showExplainPromptSettings && (
+        <PromptSettingsModal
+          title="设置解释提示词"
+          storeKey="explainPrompt"
+          onClose={() => setShowExplainPromptSettings(false)}
         />
       )}
     </div>
