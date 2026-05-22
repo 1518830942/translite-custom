@@ -1,21 +1,23 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import TitleBar from './components/TitleBar'
 import InputPanel from './components/InputPanel'
 import ResultPanel from './components/ResultPanel'
 import Toolbar from './components/Toolbar'
 import SettingsModal, { type ApiConfig } from './components/SettingsModal'
 import CloseBehaviorModal from './components/CloseBehaviorModal'
-import LanguageSettingsModal, { type LanguageCode, type LanguagePair } from './components/LanguageSettingsModal'
 import ShortcutSettingsModal from './components/ShortcutSettingsModal'
 import PromptSettingsModal from './components/PromptSettingsModal'
 import { translateStream } from './lib/translate'
 import { getStore, setStore } from './lib/store'
 import { useTheme } from './lib/useTheme'
+import { detectLang, resolveTargetLang, type LanguageCode } from './lib/lang-detect'
 
 type CloseBehavior = 'tray' | 'quit'
 type TranslateMode = 'translate' | 'polish' | 'explain'
 
-const defaultLanguagePair: LanguagePair = { source: 'zh', target: 'en' }
+const allLanguageCodes: LanguageCode[] = ['zh', 'en', 'ja']
+const defaultPreferredLanguage: LanguageCode = 'en'
+const defaultFallbackLanguage: LanguageCode = 'zh'
 const defaultShortcut = 'Alt+1'
 
 function hasValidTranslateSource(config: ApiConfig): boolean {
@@ -23,20 +25,12 @@ function hasValidTranslateSource(config: ApiConfig): boolean {
 }
 
 function isLanguageCode(value: unknown): value is LanguageCode {
-  return value === 'en' || value === 'ja' || value === 'ko' || value === 'zh' || value === 'fr' || value === 'de'
+  return value === 'en' || value === 'ja' || value === 'zh'
 }
 
-function parseLanguagePair(value: string | null): LanguagePair {
-  if (!value) return defaultLanguagePair
-
-  try {
-    const parsed = JSON.parse(value) as Partial<LanguagePair>
-    if (isLanguageCode(parsed.source) && isLanguageCode(parsed.target)) return parsed as LanguagePair
-  } catch {
-    // Ignore invalid persisted settings.
-  }
-
-  return defaultLanguagePair
+function parseLanguageValue(value: string | null, fallback: LanguageCode): LanguageCode {
+  if (value && isLanguageCode(value)) return value
+  return fallback
 }
 
 export default function App() {
@@ -45,9 +39,9 @@ export default function App() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [alwaysOnTop, setAlwaysOnTop] = useState(true)
-  const [languagePair, setLanguagePair] = useState<LanguagePair>(defaultLanguagePair)
+  const [preferredLanguage, setPreferredLanguage] = useState<LanguageCode>(defaultPreferredLanguage)
+  const [fallbackLanguage, setFallbackLanguage] = useState<LanguageCode>(defaultFallbackLanguage)
   const [showSettings, setShowSettings] = useState(false)
-  const [showLanguageSettings, setShowLanguageSettings] = useState(false)
   const [showShortcutSettings, setShowShortcutSettings] = useState(false)
   const [showCloseBehavior, setShowCloseBehavior] = useState(false)
   const [closeBehaviorAction, setCloseBehaviorAction] = useState<'close' | 'settings'>('close')
@@ -59,6 +53,11 @@ export default function App() {
   const [showPolishPromptSettings, setShowPolishPromptSettings] = useState(false)
   const [showExplainPromptSettings, setShowExplainPromptSettings] = useState(false)
   const { theme, toggleTheme } = useTheme()
+  const inputLang = useMemo(() => input.trim() ? detectLang(input) : null, [input])
+  const targetLanguage = useMemo(() => {
+    if (!inputLang) return preferredLanguage
+    return resolveTargetLang(inputLang, preferredLanguage, fallbackLanguage)
+  }, [inputLang, preferredLanguage, fallbackLanguage])
 
   useEffect(() => {
     Promise.all([
@@ -81,8 +80,11 @@ export default function App() {
       if (v === 'quit' || v === 'tray') setCloseBehavior(v)
       setCloseBehaviorLoaded(true)
     })
-    getStore('languagePair').then((v) => {
-      setLanguagePair(parseLanguagePair(v))
+    getStore('targetLanguage').then((v) => {
+      setPreferredLanguage(parseLanguageValue(v, defaultPreferredLanguage))
+    })
+    getStore('fallbackLanguage').then((v) => {
+      setFallbackLanguage(parseLanguageValue(v, defaultFallbackLanguage))
     })
     getStore('globalShortcut').then((v) => {
       setShortcut(v || defaultShortcut)
@@ -107,7 +109,7 @@ export default function App() {
 
     setLoading(true)
 
-    translateStream(input, languagePair.source, languagePair.target, (chunk) => {
+    translateStream(input, targetLanguage, (chunk) => {
       setResult((prev) => prev + chunk)
     }, mode)
       .then(() => setLoading(false))
@@ -115,7 +117,7 @@ export default function App() {
         setError(err.message)
         setLoading(false)
       })
-  }, [input, loading, languagePair, apiConfig])
+  }, [input, loading, targetLanguage, apiConfig])
 
   function handleToggleAlwaysOnTop() {
     const next = !alwaysOnTop
@@ -132,10 +134,23 @@ export default function App() {
     setShowSettings(false)
   }
 
-  function handleSaveLanguagePair(value: LanguagePair) {
-    setLanguagePair(value)
-    setStore('languagePair', JSON.stringify(value))
-    setShowLanguageSettings(false)
+  function handleInputChange(text: string) {
+    setInput(text)
+  }
+
+  function handleSelectPreferredLanguage(value: LanguageCode) {
+    setPreferredLanguage(value)
+    setStore('targetLanguage', value)
+    if (value === fallbackLanguage) {
+      const firstAlternative = allLanguageCodes.find((l) => l !== value)!
+      setFallbackLanguage(firstAlternative)
+      setStore('fallbackLanguage', firstAlternative)
+    }
+  }
+
+  function handleSelectFallbackLanguage(value: LanguageCode) {
+    setFallbackLanguage(value)
+    setStore('fallbackLanguage', value)
   }
 
   async function handleSelectCloseBehavior(value: CloseBehavior) {
@@ -178,7 +193,6 @@ export default function App() {
     <div className="h-screen flex flex-col bg-base relative">
       <TitleBar
         onOpenSettings={() => setShowSettings(true)}
-        onOpenLanguageSettings={() => setShowLanguageSettings(true)}
         onOpenShortcutSettings={() => setShowShortcutSettings(true)}
         onOpenCloseBehavior={() => { setCloseBehaviorAction('settings'); setShowCloseBehavior(true) }}
         onOpenTranslatePromptSettings={() => setShowTranslatePromptSettings(true)}
@@ -187,28 +201,24 @@ export default function App() {
         onClose={handleClose}
         onQuit={() => window.api.window.quit()}
       />
-      <InputPanel value={input} onChange={setInput} onSubmit={handleSubmit} loading={loading} />
+      <InputPanel value={input} onChange={handleInputChange} onSubmit={handleSubmit} loading={loading} />
       <ResultPanel result={result} loading={loading} error={error} />
       <Toolbar
         theme={theme}
         onToggleTheme={toggleTheme}
         alwaysOnTop={alwaysOnTop}
         onToggleAlwaysOnTop={handleToggleAlwaysOnTop}
-        languagePair={languagePair}
-        onOpenLanguageSettings={() => setShowLanguageSettings(true)}
+        targetLanguage={targetLanguage}
+        preferredLanguage={preferredLanguage}
+        fallbackLanguage={fallbackLanguage}
+        onSelectPreferred={handleSelectPreferredLanguage}
+        onSelectFallback={handleSelectFallbackLanguage}
       />
       {showSettings && (
         <SettingsModal
           config={apiConfig}
           onSave={handleSaveApiConfig}
           onClose={() => setShowSettings(false)}
-        />
-      )}
-      {showLanguageSettings && (
-        <LanguageSettingsModal
-          value={languagePair}
-          onSave={handleSaveLanguagePair}
-          onClose={() => setShowLanguageSettings(false)}
         />
       )}
       {showShortcutSettings && (

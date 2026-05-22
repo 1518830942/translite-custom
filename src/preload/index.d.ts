@@ -1,6 +1,6 @@
 interface ElectronAPI {
   translate: {
-    start: (text: string, from: string, to: string, mode?: string) => string
+    start: (text: string, to: string, mode?: string) => string
     onChunk: (id: string, callback: (chunk: string) => void) => () => void
     onDone: (id: string, callback: () => void) => () => void
     onError: (id: string, callback: (err: string) => void) => () => void

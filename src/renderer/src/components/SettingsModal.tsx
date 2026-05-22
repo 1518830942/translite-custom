@@ -13,9 +13,9 @@ interface SettingsModalProps {
 }
 
 export default function SettingsModal({ config, onSave, onClose }: SettingsModalProps) {
-  const [baseURL, setBaseURL] = useState(config.baseURL)
+  const [baseURL, setBaseURL] = useState(config.baseURL || 'https://api.deepseek.com/v1')
   const [apiKey, setApiKey] = useState(config.apiKey)
-  const [model, setModel] = useState(config.model)
+  const [model, setModel] = useState(config.model || 'deepseek-v4-flash')
 
   function handleSave() {
     onSave({

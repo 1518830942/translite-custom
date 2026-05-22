@@ -2,9 +2,9 @@ import { contextBridge, ipcRenderer } from 'electron'
 
 contextBridge.exposeInMainWorld('api', {
   translate: {
-    start: (text: string, from: string, to: string, mode?: string) => {
+    start: (text: string, to: string, mode?: string) => {
       const id = Math.random().toString(36).slice(2)
-      ipcRenderer.send('translate:start', { id, text, from, to, mode })
+      ipcRenderer.send('translate:start', { id, text, to, mode })
       return id
     },
     onChunk: (id: string, callback: (chunk: string) => void) => {

@@ -54,14 +54,13 @@ export function registerIpcHandlers(
     return resumeGlobalShortcut()
   })
 
-  ipcMain.on('translate:start', async (event, { id, text, from, to, mode }) => {
+  ipcMain.on('translate:start', async (event, { id, text, to, mode }) => {
     const controller = new AbortController()
     activeControllers.set(id, controller)
 
     try {
       await translate({
         text,
-        from,
         to,
         mode: mode || 'translate',
         signal: controller.signal,

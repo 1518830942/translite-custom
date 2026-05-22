@@ -2,7 +2,6 @@ import { useState, useEffect, useRef, type CSSProperties } from 'react'
 
 interface TitleBarProps {
   onOpenSettings: () => void
-  onOpenLanguageSettings: () => void
   onOpenShortcutSettings: () => void
   onOpenCloseBehavior: () => void
   onOpenTranslatePromptSettings: () => void
@@ -12,7 +11,7 @@ interface TitleBarProps {
   onQuit: () => void
 }
 
-export default function TitleBar({ onOpenSettings, onOpenLanguageSettings, onOpenShortcutSettings, onOpenCloseBehavior, onOpenTranslatePromptSettings, onOpenPolishPromptSettings, onOpenExplainPromptSettings, onClose, onQuit }: TitleBarProps) {
+export default function TitleBar({ onOpenSettings, onOpenShortcutSettings, onOpenCloseBehavior, onOpenTranslatePromptSettings, onOpenPolishPromptSettings, onOpenExplainPromptSettings, onClose, onQuit }: TitleBarProps) {
   const [open, setOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -61,7 +60,6 @@ export default function TitleBar({ onOpenSettings, onOpenLanguageSettings, onOpe
         {open && (
           <div ref={menuRef} className="absolute left-0 top-7 w-40 bg-surface border border-edge rounded-md shadow-xl z-50 py-1">
             <button className="w-full text-left text-sm text-secondary hover:text-primary hover:bg-muted px-3 py-2" onClick={() => handleMenuClick(onOpenSettings)}>设置 API</button>
-            <button className="w-full text-left text-sm text-secondary hover:text-primary hover:bg-muted px-3 py-2" onClick={() => handleMenuClick(onOpenLanguageSettings)}>设置互译语言</button>
             <button className="w-full text-left text-sm text-secondary hover:text-primary hover:bg-muted px-3 py-2" onClick={() => handleMenuClick(onOpenTranslatePromptSettings)}>设置翻译提示词</button>
             <button className="w-full text-left text-sm text-secondary hover:text-primary hover:bg-muted px-3 py-2" onClick={() => handleMenuClick(onOpenPolishPromptSettings)}>设置润色提示词</button>
             <button className="w-full text-left text-sm text-secondary hover:text-primary hover:bg-muted px-3 py-2" onClick={() => handleMenuClick(onOpenExplainPromptSettings)}>设置解释提示词</button>

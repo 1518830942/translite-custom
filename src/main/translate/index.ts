@@ -7,7 +7,6 @@ export type TranslateMode = 'translate' | 'polish' | 'explain'
 
 export interface TranslateOptions {
   text: string
-  from: string
   to: string
   mode?: TranslateMode
   signal?: AbortSignal
@@ -18,21 +17,17 @@ const store = new Store()
 
 export const defaultTranslatePrompt = [
   'You are a professional translator.',
-  `- If the text is in {{fromName}}, translate it to {{toName}}.`,
-  `- If the text is in {{toName}}, translate it to {{fromName}}.`,
+  'Translate the given text to {{toName}}.',
   '',
   'Rules:',
   '- Provide a formal, literal translation based on the context of the sentence.',
   '- Preserve all markdown symbols and line breaks from the original text.',
   '',
   'You must respond with a JSON object:',
-  '{"result": "translated text", "lang": "target language code"}',
+  '{"result": "translated text"}',
   '',
-  'Language codes: {{from}}, {{to}}',
-  '',
-  'Examples:',
-  `{"text": "{{greetingFrom}}", "lang_target": "{{to}}"} → {"result": "{{greetingTo}}", "lang": "{{to}}"}`,
-  `{"text": "{{greetingTo}}", "lang_target": "{{from}}"} → {"result": "{{greetingFrom}}", "lang": "{{from}}"}`,
+  'Example:',
+  `{"text": "{{greetingFrom}}"} → {"result": "{{greetingTo}}"}`,
   '',
   'Do not include any text outside the JSON.',
 ].join('\n')
@@ -67,19 +62,20 @@ export const defaultExplainPrompt = [
 const languageNames: Record<string, string> = {
   en: 'English',
   ja: 'Japanese',
-  ko: 'Korean',
   zh: 'Chinese',
-  fr: 'French',
-  de: 'German',
 }
 
 const greetings: Record<string, string> = {
   en: 'Hello',
   ja: 'こんにちは',
-  ko: '안녕하세요',
   zh: '你好',
-  fr: 'Bonjour',
-  de: 'Hallo',
+}
+
+function getGreetingForLang(code: string): string {
+  for (const [lang, greeting] of Object.entries(greetings)) {
+    if (lang !== code) return greeting
+  }
+  return 'Hello'
 }
 
 function buildEndpoint(baseURL: string): string {
@@ -94,7 +90,7 @@ function renderTemplate(template: string, vars: Record<string, string>): string 
   return template.replace(/\{\{(\w+)\}\}/g, (_, key) => vars[key] ?? '')
 }
 
-function buildSystemPrompt(mode: TranslateMode, from: string, to: string): string {
+function buildSystemPrompt(mode: TranslateMode, to: string): string {
   if (mode === 'polish') {
     return (store.get('polishPrompt') as string) || defaultPolishPrompt
   }
@@ -103,11 +99,9 @@ function buildSystemPrompt(mode: TranslateMode, from: string, to: string): strin
   }
   const template = (store.get('translatePrompt') as string) || defaultTranslatePrompt
   return renderTemplate(template, {
-    from,
     to,
-    fromName: languageNames[from] || from,
     toName: languageNames[to] || to,
-    greetingFrom: greetings[from] || '',
+    greetingFrom: getGreetingForLang(to),
     greetingTo: greetings[to] || '',
   })
 }
@@ -125,7 +119,7 @@ function appendRequestLog(entry: object): void {
   fs.appendFileSync(logFile, JSON.stringify(entry) + '\n')
 }
 
-export async function translate({ text, from, to, mode = 'translate', signal, onChunk }: TranslateOptions): Promise<void> {
+export async function translate({ text, to, mode = 'translate', signal, onChunk }: TranslateOptions): Promise<void> {
   const apiKey = store.get('apiKey', '') as string
   if (!apiKey) {
     throw new Error('API Key not configured')
@@ -141,9 +135,9 @@ export async function translate({ text, from, to, mode = 'translate', signal, on
     throw new Error('API Model not configured')
   }
 
-  const systemContent = buildSystemPrompt(mode, from, to)
+  const systemContent = buildSystemPrompt(mode, to)
   const userContent = mode === 'translate'
-    ? JSON.stringify({ text, lang_target: to })
+    ? JSON.stringify({ text, target: languageNames[to] || to })
     : JSON.stringify({ text })
   const endpoint = buildEndpoint(baseURL)
 

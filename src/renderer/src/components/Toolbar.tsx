@@ -1,16 +1,69 @@
+import { useState, useEffect, useRef } from 'react'
 import { type Theme } from '../lib/useTheme'
-import { type LanguagePair, getLanguageLabel } from './LanguageSettingsModal'
+import { type LanguageCode } from '../lib/lang-detect'
 
 interface ToolbarProps {
   theme: Theme
   onToggleTheme: () => void
   alwaysOnTop: boolean
   onToggleAlwaysOnTop: () => void
-  languagePair: LanguagePair
-  onOpenLanguageSettings: () => void
+  targetLanguage: LanguageCode
+  preferredLanguage: LanguageCode
+  fallbackLanguage: LanguageCode
+  onSelectPreferred: (lang: LanguageCode) => void
+  onSelectFallback: (lang: LanguageCode) => void
 }
 
-export default function Toolbar({ theme, onToggleTheme, alwaysOnTop, onToggleAlwaysOnTop, languagePair, onOpenLanguageSettings }: ToolbarProps) {
+const allLanguages: { code: LanguageCode; label: string }[] = [
+  { code: 'zh', label: '中文' },
+  { code: 'en', label: '英语' },
+  { code: 'ja', label: '日语' },
+]
+
+const languageLabels: Record<LanguageCode, string> = {
+  zh: '中文',
+  en: '英语',
+  ja: '日语',
+}
+
+export default function Toolbar({ theme, onToggleTheme, alwaysOnTop, onToggleAlwaysOnTop, targetLanguage, preferredLanguage, fallbackLanguage, onSelectPreferred, onSelectFallback }: ToolbarProps) {
+  const [langMenuOpen, setLangMenuOpen] = useState(false)
+  const langBtnRef = useRef<HTMLButtonElement>(null)
+  const langMenuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!langMenuOpen) return
+
+    function handleClickOutside(e: MouseEvent) {
+      if (
+        langMenuRef.current?.contains(e.target as Node) ||
+        langBtnRef.current?.contains(e.target as Node)
+      ) return
+      setLangMenuOpen(false)
+    }
+
+    function handleWindowBlur() {
+      setLangMenuOpen(false)
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    window.addEventListener('blur', handleWindowBlur)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      window.removeEventListener('blur', handleWindowBlur)
+    }
+  }, [langMenuOpen])
+
+  function handleSelectPreferred(code: LanguageCode) {
+    onSelectPreferred(code)
+  }
+
+  function handleSelectFallback(code: LanguageCode) {
+    onSelectFallback(code)
+  }
+
+  const fallbackOptions = allLanguages.filter((l) => l.code !== preferredLanguage)
+
   return (
     <div className="flex items-center justify-between h-9 px-3 bg-surface border-t border-edge select-none">
       <div className="flex items-center gap-2">
@@ -29,13 +82,43 @@ export default function Toolbar({ theme, onToggleTheme, alwaysOnTop, onToggleAlw
             <path d="M9 15l-5 5" />
           </svg>
         </button>
-        <button
-          onClick={onOpenLanguageSettings}
-          className="text-xs text-dim hover:text-primary cursor-pointer"
-          title="设置互译语言"
-        >
-          {getLanguageLabel(languagePair.source)} ↔ {getLanguageLabel(languagePair.target)}
-        </button>
+        <div className="relative">
+          <button
+            ref={langBtnRef}
+            onClick={() => setLangMenuOpen((v) => !v)}
+            className="text-xs text-dim hover:text-primary cursor-pointer"
+            title="语言设置"
+          >
+            → {languageLabels[targetLanguage]}
+          </button>
+          {langMenuOpen && (
+            <div ref={langMenuRef} className="absolute left-0 bottom-full mb-1 w-28 bg-surface border border-edge rounded-md shadow-xl z-50 py-1">
+              <div className="px-3 pt-1 pb-0.5 text-[10px] text-dim">目标</div>
+              {allLanguages.map((opt) => (
+                <button
+                  key={opt.code}
+                  className="w-full text-left text-xs px-3 py-1.5 text-secondary hover:text-primary hover:bg-muted flex items-center gap-1"
+                  onClick={() => handleSelectPreferred(opt.code)}
+                >
+                  <span className="w-3 inline-block text-accent">{opt.code === preferredLanguage ? '✓' : ''}</span>
+                  {languageLabels[opt.code]}
+                </button>
+              ))}
+              <div className="border-t border-edge my-1" />
+              <div className="px-3 pt-1 pb-0.5 text-[10px] text-dim">回退</div>
+              {fallbackOptions.map((opt) => (
+                <button
+                  key={opt.code}
+                  className="w-full text-left text-xs px-3 py-1.5 text-secondary hover:text-primary hover:bg-muted flex items-center gap-1"
+                  onClick={() => handleSelectFallback(opt.code)}
+                >
+                  <span className="w-3 inline-block text-accent">{opt.code === fallbackLanguage ? '✓' : ''}</span>
+                  {languageLabels[opt.code]}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
       <button
         onClick={onToggleTheme}
