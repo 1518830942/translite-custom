@@ -137,6 +137,16 @@ function registerGlobalShortcut(value: string): string | null {
   return shortcut
 }
 
+function suspendGlobalShortcut(): string {
+  if (registeredShortcut) globalShortcut.unregister(registeredShortcut)
+  return registeredShortcut
+}
+
+function resumeGlobalShortcut(): boolean {
+  if (!registeredShortcut) return false
+  return globalShortcut.register(registeredShortcut, activateWindow)
+}
+
 function quitApp() {
   isQuitting = true
   app.quit()
@@ -228,7 +238,7 @@ function createWindow() {
     mainWindow?.show()
   })
 
-  registerIpcHandlers(mainWindow, closeWindow, registerGlobalShortcut)
+  registerIpcHandlers(mainWindow, closeWindow, registerGlobalShortcut, suspendGlobalShortcut, resumeGlobalShortcut)
 }
 
 app.whenReady().then(() => {

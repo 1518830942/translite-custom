@@ -18,6 +18,8 @@ interface ElectronAPI {
   }
   shortcut: {
     set: (shortcut: string) => Promise<string | null>
+    suspend: () => Promise<string>
+    resume: () => Promise<boolean>
   }
 }
 

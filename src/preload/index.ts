@@ -46,5 +46,7 @@ contextBridge.exposeInMainWorld('api', {
   },
   shortcut: {
     set: (shortcut: string) => ipcRenderer.invoke('shortcut:set', shortcut),
+    suspend: () => ipcRenderer.invoke('shortcut:suspend'),
+    resume: () => ipcRenderer.invoke('shortcut:resume'),
   },
 })

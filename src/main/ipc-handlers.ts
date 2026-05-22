@@ -18,6 +18,8 @@ export function registerIpcHandlers(
   mainWindow: BrowserWindow,
   closeWindow: (behavior?: CloseBehavior) => void,
   registerGlobalShortcut: (shortcut: string) => string | null,
+  suspendGlobalShortcut: () => string,
+  resumeGlobalShortcut: () => boolean,
 ) {
   initializeDefaultPrompts()
   ipcMain.handle('store:get', (_event, key: string) => {
@@ -42,6 +44,14 @@ export function registerIpcHandlers(
 
   ipcMain.handle('shortcut:set', (_event, shortcut: string) => {
     return registerGlobalShortcut(shortcut)
+  })
+
+  ipcMain.handle('shortcut:suspend', () => {
+    return suspendGlobalShortcut()
+  })
+
+  ipcMain.handle('shortcut:resume', () => {
+    return resumeGlobalShortcut()
   })
 
   ipcMain.on('translate:start', async (event, { id, text, from, to, mode }) => {
