@@ -12,6 +12,7 @@ const store = new Store()
 const windowBoundsKey = 'windowBounds'
 const closeBehaviorKey = 'closeBehavior'
 const shortcutKey = 'globalShortcut'
+const openAtLoginKey = 'openAtLogin'
 const defaultShortcut = 'Alt+1'
 const minWidth = 360
 const minHeight = 420
@@ -88,14 +89,13 @@ function sendClipboardTextToInput() {
   if (text) mainWindow.webContents.send('input:setFromClipboard', text)
 }
 
-function toggleWindow() {
+function activateWindow() {
   if (!mainWindow) return
-  if (mainWindow.isVisible()) {
-    closeWindow('tray')
-  } else {
-    sendClipboardTextToInput()
-    showWindow()
+  sendClipboardTextToInput()
+  if (!mainWindow.isVisible()) {
+    mainWindow.show()
   }
+  mainWindow.focus()
 }
 
 function normalizeShortcut(value: string): string {
@@ -126,9 +126,9 @@ function registerGlobalShortcut(value: string): string | null {
 
   if (registeredShortcut) globalShortcut.unregister(registeredShortcut)
 
-  const registered = globalShortcut.register(shortcut, toggleWindow)
+  const registered = globalShortcut.register(shortcut, activateWindow)
   if (!registered) {
-    if (registeredShortcut) globalShortcut.register(registeredShortcut, toggleWindow)
+    if (registeredShortcut) globalShortcut.register(registeredShortcut, activateWindow)
     return null
   }
 
@@ -142,16 +142,32 @@ function quitApp() {
   app.quit()
 }
 
+function isOpenAtLogin(): boolean {
+  return app.getLoginItemSettings().openAtLogin
+}
+
+function setOpenAtLogin(enabled: boolean) {
+  store.set(openAtLoginKey, enabled)
+  app.setLoginItemSettings({ openAtLogin: enabled })
+}
+
+function buildTrayMenu(): Menu {
+  return Menu.buildFromTemplate([
+    { label: '显示', click: showWindow },
+    { type: 'separator' },
+    { label: '开机启动', type: 'checkbox', checked: isOpenAtLogin(), click: (item) => setOpenAtLogin(item.checked) },
+    { type: 'separator' },
+    { label: '退出', click: quitApp },
+  ])
+}
+
 function createTray() {
   if (tray) return
 
   const icon = loadTrayIcon()
   tray = new Tray(icon)
   tray.setToolTip('Translite')
-  tray.setContextMenu(Menu.buildFromTemplate([
-    { label: '显示', click: showWindow },
-    { label: '退出', click: quitApp },
-  ]))
+  tray.setContextMenu(buildTrayMenu())
   tray.on('click', showWindow)
 }
 
@@ -162,19 +178,25 @@ function closeWindow(behavior = store.get(closeBehaviorKey, 'tray') as CloseBeha
     return
   }
 
-  createTray()
   mainWindow?.hide()
 }
 
 function createWindow() {
   const bounds = getInitialBounds()
+  const { width: screenW, height: screenH } = screen.getPrimaryDisplay().workArea
+  const maxPixelWidth = 640
+  const maxPixelHeight = 760
+  const maxRatio = 0.8
 
   mainWindow = new BrowserWindow({
     ...bounds,
     minWidth,
     minHeight,
+    maxWidth: Math.min(maxPixelWidth, Math.round(screenW * maxRatio)),
+    maxHeight: Math.min(maxPixelHeight, Math.round(screenH * maxRatio)),
     frame: false,
     resizable: true,
+    maximizable: false,
     alwaysOnTop: true,
     skipTaskbar: false,
     show: false,
@@ -211,6 +233,12 @@ function createWindow() {
 
 app.whenReady().then(() => {
   createWindow()
+  createTray()
+
+  const savedOpenAtLogin = store.get(openAtLoginKey, false) as boolean
+  if (savedOpenAtLogin !== isOpenAtLogin()) {
+    app.setLoginItemSettings({ openAtLogin: savedOpenAtLogin })
+  }
 
   const savedShortcut = store.get(shortcutKey, defaultShortcut) as string
   if (!registerGlobalShortcut(savedShortcut)) registerGlobalShortcut(defaultShortcut)

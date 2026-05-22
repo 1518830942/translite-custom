@@ -1,4 +1,4 @@
-import { useState, type CSSProperties } from 'react'
+import { useState, useEffect, useRef, type CSSProperties } from 'react'
 
 interface TitleBarProps {
   onOpenSettings: () => void
@@ -14,6 +14,31 @@ interface TitleBarProps {
 
 export default function TitleBar({ onOpenSettings, onOpenLanguageSettings, onOpenShortcutSettings, onOpenCloseBehavior, onOpenTranslatePromptSettings, onOpenPolishPromptSettings, onOpenExplainPromptSettings, onClose, onQuit }: TitleBarProps) {
   const [open, setOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+
+    function handleClickOutside(e: MouseEvent) {
+      if (
+        menuRef.current?.contains(e.target as Node) ||
+        triggerRef.current?.contains(e.target as Node)
+      ) return
+      setOpen(false)
+    }
+
+    function handleWindowBlur() {
+      setOpen(false)
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    window.addEventListener('blur', handleWindowBlur)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      window.removeEventListener('blur', handleWindowBlur)
+    }
+  }, [open])
 
   function handleMenuClick(action: () => void) {
     setOpen(false)
@@ -24,6 +49,7 @@ export default function TitleBar({ onOpenSettings, onOpenLanguageSettings, onOpe
     <div className="flex items-center justify-between h-8 px-3 bg-surface select-none" style={{ WebkitAppRegion: 'drag' } as CSSProperties}>
       <div className="relative flex items-center gap-1" style={{ WebkitAppRegion: 'no-drag' } as CSSProperties}>
         <button
+          ref={triggerRef}
           className="text-secondary hover:text-primary w-6 h-6 flex items-center justify-center rounded hover:bg-muted"
           onClick={() => setOpen((value) => !value)}
           aria-label="打开菜单"
@@ -33,7 +59,7 @@ export default function TitleBar({ onOpenSettings, onOpenLanguageSettings, onOpe
         </button>
         <span className="text-xs text-secondary font-medium">Translite</span>
         {open && (
-          <div className="absolute left-0 top-7 w-40 bg-surface border border-edge rounded-md shadow-xl z-50 py-1">
+          <div ref={menuRef} className="absolute left-0 top-7 w-40 bg-surface border border-edge rounded-md shadow-xl z-50 py-1">
             <button className="w-full text-left text-sm text-secondary hover:text-primary hover:bg-muted px-3 py-2" onClick={() => handleMenuClick(onOpenSettings)}>设置 API</button>
             <button className="w-full text-left text-sm text-secondary hover:text-primary hover:bg-muted px-3 py-2" onClick={() => handleMenuClick(onOpenLanguageSettings)}>设置互译语言</button>
             <button className="w-full text-left text-sm text-secondary hover:text-primary hover:bg-muted px-3 py-2" onClick={() => handleMenuClick(onOpenTranslatePromptSettings)}>设置翻译提示词</button>

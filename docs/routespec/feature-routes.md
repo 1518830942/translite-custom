@@ -28,10 +28,10 @@
 
 ### 窗口管理
 
-- Description: 无边框置顶小窗创建、右下偏中默认定位、窗口位置/大小持久化、最小尺寸、关闭行为选择、托盘显隐控制
+- Description: 无边框置顶小窗创建、右下角偏中默认定位、窗口位置/大小持久化、最小尺寸、关闭行为选择、托盘显隐控制、开机启动
 - Entry: `src/main/index.ts:7` (`getDefaultBounds` / `createWindow`)
-- Core: `src/main/index.ts:7-100` (BrowserWindow 配置、窗口 bounds 存储、托盘与关闭行为)
-- Notes: 窗口 bounds 存储在 electron-store 的 `windowBounds`；关闭行为存储在 `closeBehavior`
+- Core: `src/main/index.ts:7-100` (BrowserWindow 配置、窗口 bounds 存储、托盘与关闭行为), `src/main/index.ts:145-172` (开机启动、托盘右键菜单)
+- Notes: 窗口 bounds 存储在 electron-store 的 `windowBounds`；关闭行为存储在 `closeBehavior`；开机启动设置存储在 `openAtLogin`，通过 `app.setLoginItemSettings` 实现；托盘图标在应用启动时立即创建
 
 ### 全局快捷键
 
