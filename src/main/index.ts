@@ -8,6 +8,13 @@ type CloseBehavior = 'tray' | 'quit'
 let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
 let isQuitting = false
+
+if (!app.requestSingleInstanceLock()) {
+  app.quit()
+}
+
+app.setAppUserModelId('com.translite.app')
+
 const store = new Store()
 const windowBoundsKey = 'windowBounds'
 const closeBehaviorKey = 'closeBehavior'
@@ -240,6 +247,12 @@ function createWindow() {
 
   registerIpcHandlers(mainWindow, closeWindow, registerGlobalShortcut, suspendGlobalShortcut, resumeGlobalShortcut)
 }
+
+app.on('second-instance', () => {
+  if (!mainWindow) return
+  if (!mainWindow.isVisible()) mainWindow.show()
+  mainWindow.focus()
+})
 
 app.whenReady().then(() => {
   createWindow()
