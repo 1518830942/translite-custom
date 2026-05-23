@@ -19,14 +19,14 @@
 
 ## 版本信息
 
-当前版本：`1.0.0`
+当前版本：`1.1.3`
 
 ## 发布流程
 
 1. 更新 `package.json` 中的 `version` 字段
 2. 提交并推送代码
-3. 在宿主机执行 `pnpm build:win` 打包安装文件，确保 `release/` 下生成对应版本号的安装文件
+3. 提醒用户在宿主机执行 `pnpm build:win` 打包安装文件，确保 `release/` 下生成对应版本号的安装文件；等待用户确认打包完成
 4. 创建并推送 tag：`git tag v<version> && git push origin v<version>`
-5. 发布 release：`gh release create v<version> --title "v<version>" --notes "Release notes"`
+5. 提醒用户在宿主机执行 `gh release create v<version> --title "v<version>" --notes "Release notes"` 发布 release
 
-**注意：发布前必须确认用户已在宿主机上完成打包，否则应提醒用户先执行 `pnpm build:win`。**
+**注意：`pnpm build:win` 和 `gh release create` 均由用户在宿主机上执行，AI 不可代为执行。发布前必须确认用户已在宿主机上完成打包。**
