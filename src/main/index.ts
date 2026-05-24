@@ -164,6 +164,7 @@ function isOpenAtLogin(): boolean {
 }
 
 function setOpenAtLogin(enabled: boolean) {
+  if (!app.isPackaged) return
   store.set(openAtLoginKey, enabled)
   app.setLoginItemSettings({ openAtLogin: enabled })
 }
@@ -259,7 +260,9 @@ app.whenReady().then(() => {
   createTray()
 
   const savedOpenAtLogin = store.get(openAtLoginKey, false) as boolean
-  if (savedOpenAtLogin !== isOpenAtLogin()) {
+  if (!app.isPackaged) {
+    app.setLoginItemSettings({ openAtLogin: false })
+  } else if (savedOpenAtLogin !== isOpenAtLogin()) {
     app.setLoginItemSettings({ openAtLogin: savedOpenAtLogin })
   }
 
