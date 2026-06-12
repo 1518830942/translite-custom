@@ -9,11 +9,11 @@
 
 ## 环境说明
 
-当前环境为 WSL2，本应用目前为 Win10/11 开发，所以任何构建命令、打包命令，都应直接告诉用户执行命令，由用户手工在宿主机上执行。
+当前环境为 Windows 原生（Win10/11），AI 可直接执行构建、打包等命令。
 
 ## 常用命令
 
-- `pnpm dev` — 启动开发模式
+- `pnpm dev` — 启动开发模式（需由用户手动启动）
 - `pnpm typecheck` — 类型检查
 - `pnpm build:win` — 清理 `release/` 后构建 Windows 安装包
 
@@ -22,6 +22,35 @@
 1. 更新 `package.json` 中的 `version` 字段
 2. 提交并推送代码
 3. 创建并推送 tag：`git tag v<version> && git push origin v<version>`
-4. 提醒用户在宿主机执行 `pnpm build:win` 打包安装文件，然后执行 `gh release create v<version> release/translite-<version>-setup.exe --title "v<version>" --notes "Release notes"` 创建 release 并上传安装包；等待用户确认完成
+4. 执行 `pnpm build:win` 构建安装包
+5. 执行 `gh release create v<version> release/translite-<version>-setup.exe --title "v<version>" --notes "Release notes"` 创建 release 并上传安装包
 
-**注意：`pnpm build:win` 和 `gh release create` 均由用户在宿主机上执行，AI 不可代为执行。发布前必须确认用户已在宿主机上完成打包。**
+## 开发环境配置 (Windows)
+
+### 系统要求
+
+- Windows 10 或更高版本
+- [Node.js](https://nodejs.org/) (建议 LTS 版本)
+- [pnpm](https://pnpm.io/) 包管理器
+
+### 常用开发命令
+
+```bash
+# 安装依赖
+pnpm install
+
+# 启动开发模式
+pnpm dev
+
+# 类型检查
+pnpm typecheck
+
+# 构建 Windows 安装包 (在项目根目录执行)
+pnpm build:win
+```
+
+### 调试技巧
+
+- 开发模式下，Electron DevTools 可通过 `Ctrl+Shift+I` 打开。
+- 检查日志输出，排查常见问题。
+
