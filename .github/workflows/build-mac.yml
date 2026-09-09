@@ -1,0 +1,48 @@
+name: Build Apple Silicon macOS
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 25
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      ELECTRON_MIRROR: https://github.com/electron/electron/releases/download/
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: pnpm/action-setup@v4
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Check types and platform behavior
+        run: |
+          pnpm typecheck
+          node scripts/test-mac-shortcuts.cjs
+          node scripts/test-phonetics.cjs
+      - name: Build arm64 DMG and ZIP
+        run: pnpm build:mac
+      - name: Verify arm64 payload and create checksums
+        run: |
+          APP="release/mac-arm64/Translite.app"
+          test -d "$APP"
+          lipo -verify_arch arm64 "$APP/Contents/MacOS/Translite"
+          lipo -verify_arch arm64 "$APP/Contents/Resources/selection-copy-macos"
+          test -x "$APP/Contents/Resources/selection-copy-macos"
+          cd release
+          shasum -a 256 *.dmg *.zip > SHA256SUMS-mac.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: translite-mac-arm64
+          path: |
+            release/*.dmg
+            release/*.zip
+            release/SHA256SUMS-mac.txt
+          if-no-files-found: error
+          retention-days: 14
