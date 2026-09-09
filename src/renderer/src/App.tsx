@@ -11,6 +11,7 @@ import { translateStream } from './lib/translate'
 import { getStore, setStore } from './lib/store'
 import { useTheme } from './lib/useTheme'
 import { detectLang, resolveTargetLang, type LanguageCode } from './lib/lang-detect'
+import type { WordPhonetics } from '../../shared/phonetics'
 
 type CloseBehavior = 'tray' | 'quit'
 type TranslateMode = 'translate' | 'polish' | 'explain'
@@ -18,7 +19,7 @@ type TranslateMode = 'translate' | 'polish' | 'explain'
 const allLanguageCodes: LanguageCode[] = ['zh', 'en', 'ja']
 const defaultPreferredLanguage: LanguageCode = 'en'
 const defaultFallbackLanguage: LanguageCode = 'zh'
-const defaultShortcut = 'Alt+1'
+const defaultShortcut = 'Alt+E'
 
 function hasValidTranslateSource(config: ApiConfig): boolean {
   return Boolean(config.baseURL.trim() && config.apiKey.trim() && config.model.trim())
@@ -36,7 +37,9 @@ function parseLanguageValue(value: string | null, fallback: LanguageCode): Langu
 export default function App() {
   const [input, setInput] = useState('')
   const [result, setResult] = useState('')
+  const [phonetics, setPhonetics] = useState<WordPhonetics | null>(null)
   const [loading, setLoading] = useState(false)
+  const [pendingClipboard, setPendingClipboard] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [alwaysOnTop, setAlwaysOnTop] = useState(true)
   const [preferredLanguage, setPreferredLanguage] = useState<LanguageCode>(defaultPreferredLanguage)
@@ -93,13 +96,16 @@ export default function App() {
 
   useEffect(() => {
     return window.api.window.onSetInputFromClipboard((text) => {
+      if (!text.trim()) return
       setInput(text)
+      setPendingClipboard(text)
     })
   }, [])
 
-  const handleSubmit = useCallback((mode: TranslateMode = 'translate') => {
-    if (!input.trim() || loading) return
+  const handleSubmit = useCallback((mode: TranslateMode = 'translate', text = input) => {
+    if (!text.trim() || loading) return
     setResult('')
+    setPhonetics(null)
     setError(null)
 
     if (!hasValidTranslateSource(apiConfig)) {
@@ -109,15 +115,22 @@ export default function App() {
 
     setLoading(true)
 
-    translateStream(input, targetLanguage, (chunk) => {
+    const to = resolveTargetLang(detectLang(text), preferredLanguage, fallbackLanguage)
+    translateStream(text, to, (chunk) => {
       setResult((prev) => prev + chunk)
-    }, mode)
+    }, mode, setPhonetics)
       .then(() => setLoading(false))
       .catch((err) => {
         setError(err.message)
         setLoading(false)
       })
-  }, [input, loading, targetLanguage, apiConfig])
+  }, [input, loading, preferredLanguage, fallbackLanguage, apiConfig])
+
+  useEffect(() => {
+    if (pendingClipboard === null || loading) return
+    setPendingClipboard(null)
+    handleSubmit('translate', pendingClipboard)
+  }, [pendingClipboard, loading, handleSubmit])
 
   function handleToggleAlwaysOnTop() {
     const next = !alwaysOnTop
@@ -202,7 +215,7 @@ export default function App() {
         onQuit={() => window.api.window.quit()}
       />
       <InputPanel value={input} onChange={handleInputChange} onSubmit={handleSubmit} loading={loading} />
-      <ResultPanel result={result} loading={loading} error={error} />
+      <ResultPanel result={result} phonetics={phonetics} loading={loading} error={error} />
       <Toolbar
         theme={theme}
         onToggleTheme={toggleTheme}

@@ -64,6 +64,9 @@ export function registerIpcHandlers(
         to,
         mode: mode || 'translate',
         signal: controller.signal,
+        onPhonetics: (phonetics) => {
+          event.sender.send('translate:phonetics', { id, phonetics })
+        },
         onChunk: (chunk) => {
           event.sender.send('translate:chunk', { id, chunk })
         },

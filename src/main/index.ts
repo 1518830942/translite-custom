@@ -2,6 +2,7 @@ import { app, BrowserWindow, clipboard, globalShortcut, Menu, nativeImage, scree
 import { join } from 'path'
 import Store from 'electron-store'
 import { registerIpcHandlers } from './ipc-handlers'
+import { execFile } from 'node:child_process'
 
 type CloseBehavior = 'tray' | 'quit'
 
@@ -20,10 +21,11 @@ const windowBoundsKey = 'windowBounds'
 const closeBehaviorKey = 'closeBehavior'
 const shortcutKey = 'globalShortcut'
 const openAtLoginKey = 'openAtLogin'
-const defaultShortcut = 'Alt+1'
+const defaultShortcut = 'Alt+E'
 const minWidth = 360
 const minHeight = 420
 let registeredShortcut = ''
+let capturingSelection = false
 
 function resolveIconPath(name: string): string {
   if (app.isPackaged) {
@@ -84,8 +86,12 @@ function saveWindowBounds() {
 }
 
 function showWindow() {
-  if (!mainWindow) return
+  if (!mainWindow || mainWindow.isDestroyed()) return
+  if (mainWindow.isMinimized()) mainWindow.restore()
   mainWindow.show()
+  // Windows may decline focus after asynchronous selection copying. Raise the
+  // existing window explicitly without changing the user's always-on-top setting.
+  mainWindow.moveTop()
   mainWindow.focus()
 }
 
@@ -96,13 +102,39 @@ function sendClipboardTextToInput() {
   if (text) mainWindow.webContents.send('input:setFromClipboard', text)
 }
 
-function activateWindow() {
-  if (!mainWindow) return
-  sendClipboardTextToInput()
-  if (!mainWindow.isVisible()) {
-    mainWindow.show()
+async function activateWindow() {
+  if (!mainWindow || capturingSelection) return
+  capturingSelection = true
+  try {
+    if (process.platform === 'win32') {
+      // Keep the source window focused until copying has completed.
+      const text = await new Promise<string | null>((resolve) => {
+        execFile(resolveIconPath('selection-copy.exe'), [], {
+          windowsHide: true, timeout: 3500, maxBuffer: 4 * 1024 * 1024,
+        }, (error, stdout) => {
+          resolve(error ? null : Buffer.from(stdout.trim(), 'base64').toString('utf8'))
+        })
+      })
+      if (!mainWindow || mainWindow.isDestroyed()) return
+      if (text?.trim()) mainWindow.webContents.send('input:setFromClipboard', text)
+    } else {
+      sendClipboardTextToInput()
+    }
+    showWindow()
+    if (process.platform === 'win32' && mainWindow && !mainWindow.isDestroyed()) {
+      const handle = mainWindow.getNativeWindowHandle()
+      const windowId = (handle.length === 8 ? handle.readBigUInt64LE() : BigInt(handle.readUInt32LE())).toString()
+      // Check actual Windows foreground ownership; Electron focus() is best effort.
+      const activated = await new Promise<boolean>((resolve) => {
+        execFile(resolveIconPath('selection-copy.exe'), ['--activate', windowId, String(process.pid)], {
+          windowsHide: true, timeout: 1500,
+        }, (error) => resolve(!error))
+      })
+      if (!activated && mainWindow && !mainWindow.isDestroyed()) mainWindow.flashFrame(true)
+    }
+  } finally {
+    capturingSelection = false
   }
-  mainWindow.focus()
 }
 
 function normalizeShortcut(value: string): string {

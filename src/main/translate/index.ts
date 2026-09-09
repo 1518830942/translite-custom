@@ -2,6 +2,7 @@ import Store from 'electron-store'
 import os from 'os'
 import fs from 'fs'
 import path from 'path'
+import { isSingleEnglishWord, parsePhonetics, type WordPhonetics } from '../../shared/phonetics'
 
 export type TranslateMode = 'translate' | 'polish' | 'explain'
 
@@ -11,6 +12,7 @@ export interface TranslateOptions {
   mode?: TranslateMode
   signal?: AbortSignal
   onChunk: (chunk: string) => void
+  onPhonetics?: (phonetics: WordPhonetics | null) => void
 }
 
 const store = new Store()
@@ -119,7 +121,7 @@ function appendRequestLog(entry: object): void {
   fs.appendFileSync(logFile, JSON.stringify(entry) + '\n')
 }
 
-export async function translate({ text, to, mode = 'translate', signal, onChunk }: TranslateOptions): Promise<void> {
+export async function translate({ text, to, mode = 'translate', signal, onChunk, onPhonetics }: TranslateOptions): Promise<void> {
   const apiKey = store.get('apiKey', '') as string
   if (!apiKey) {
     throw new Error('API Key not configured')
@@ -135,7 +137,17 @@ export async function translate({ text, to, mode = 'translate', signal, onChunk 
     throw new Error('API Model not configured')
   }
 
-  const systemContent = buildSystemPrompt(mode, to)
+  const withPhonetics = mode === 'translate' && isSingleEnglishWord(text)
+  const systemContent = buildSystemPrompt(mode, to) + (withPhonetics ? [
+    '', '', 'Additional single English word pronunciation metadata:',
+    'Keep the translated text in the existing "result" field. Add a separate "phonetics" object with "uk" and "us" fields.',
+    'Use standard British English and General American IPA respectively, enclosed in /slashes/.',
+    'Use a common pronunciation consistent with the translated meaning. Never put IPA inside "result".',
+    'Include English-language proper names, software names and brands, not just dictionary words.',
+    'For a name without an established pronunciation, provide a plausible English spelling-based IPA reading and set phonetics.estimated to true. This will be labeled as a non-official reading suggestion, never as an authoritative pronunciation.',
+    'For established pronunciations set estimated to false. If no reasonable reading can be given, return null for that field. Do not claim an official UK/US distinction when none is known.',
+    'JSON shape: {"result":"translated text","phonetics":{"uk":"/IPA/","us":"/IPA/","estimated":false}}',
+  ].join('\n') : '')
   const userContent = mode === 'translate'
     ? JSON.stringify({ text, target: languageNames[to] || to })
     : JSON.stringify({ text })
@@ -206,6 +218,7 @@ export async function translate({ text, to, mode = 'translate', signal, onChunk 
   let resultText: string
   try {
     const parsed = JSON.parse(fullContent)
+    if (withPhonetics) onPhonetics?.(parsePhonetics(parsed.phonetics))
     resultText = parsed.result || ''
     onChunk(resultText)
   } catch {

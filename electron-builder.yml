@@ -4,22 +4,24 @@ directories:
   output: release
   buildResources: build
 files:
-  - '!**/.vscode/*'
-  - '!src/*'
-  - '!electron.vite.config.{js,ts,mjs,cjs}'
-  - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
-  - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+  - 'out/main/**/*'
+  - 'out/preload/**/*'
+  - 'out/renderer/**/*'
+  - 'package.json'
 extraResources:
   - from: build/icon.png
     to: icon.png
   - from: build/tray-icon.png
     to: tray-icon.png
 win:
+  extraResources:
+    - from: build/selection-copy.exe
+      to: selection-copy.exe
   target:
     - target: nsis
       arch: [x64]
   icon: build/icon.ico
-  artifactName: ${name}-${version}-setup.${ext}
+  artifactName: translite-custom-${version}-win-x64-setup.${ext}
 nsis:
   oneClick: false
   perMachine: false

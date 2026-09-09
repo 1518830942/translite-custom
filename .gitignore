@@ -4,3 +4,11 @@ out/
 release/
 .tmp/
 *.log
+build/selection-copy.exe
+local-package/
+local-auto-translate.asar
+.env
+.env.*
+*.jsonl
+*.asar
+config.json

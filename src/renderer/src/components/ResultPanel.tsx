@@ -1,12 +1,14 @@
 import { useState, useCallback, useRef } from 'react'
+import type { WordPhonetics } from '../../../shared/phonetics'
 
 interface ResultPanelProps {
   result: string
+  phonetics: WordPhonetics | null
   loading: boolean
   error: string | null
 }
 
-export default function ResultPanel({ result, loading, error }: ResultPanelProps) {
+export default function ResultPanel({ result, phonetics, loading, error }: ResultPanelProps) {
   const [copied, setCopied] = useState(false)
   const [copyDisabled, setCopyDisabled] = useState(false)
   const [hovered, setHovered] = useState(false)
@@ -32,6 +34,15 @@ export default function ResultPanel({ result, loading, error }: ResultPanelProps
         onMouseEnter={() => result && setHovered(true)}
         onMouseLeave={() => setHovered(false)}
       >
+        {phonetics && (
+          <div className="mb-3 pb-3 border-b border-edge cursor-text" onClick={(event) => event.stopPropagation()}>
+            <div className="text-dim text-xs mb-1.5">{phonetics.estimated ? '拼读参考 · AI 推测，非官方读音' : '音标 · AI 生成'}</div>
+            <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-primary select-text">
+              <span><span className="text-dim mr-2">英</span>{phonetics.uk || '暂无音标'}</span>
+              <span><span className="text-dim mr-2">美</span>{phonetics.us || '暂无音标'}</span>
+            </div>
+          </div>
+        )}
         {loading && !result && (
           <div className="text-dim text-sm animate-pulse">翻译中...</div>
         )}

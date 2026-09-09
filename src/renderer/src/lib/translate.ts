@@ -1,13 +1,17 @@
+import type { WordPhonetics } from '../../../shared/phonetics'
+
 export function translateStream(
   text: string,
   to: string,
   onChunk: (chunk: string) => void,
   mode?: string,
+  onPhonetics?: (phonetics: WordPhonetics | null) => void,
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     const id = window.api.translate.start(text, to, mode)
 
     let result = ''
+    const removePhonetics = window.api.translate.onPhonetics(id, (phonetics) => onPhonetics?.(phonetics))
 
     const removeChunk = window.api.translate.onChunk(id, (chunk) => {
       result += chunk
@@ -25,6 +29,7 @@ export function translateStream(
     })
 
     function cleanup() {
+      removePhonetics()
       removeChunk()
       removeDone()
       removeError()

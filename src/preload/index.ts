@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
+import type { WordPhonetics } from '../shared/phonetics'
 
 contextBridge.exposeInMainWorld('api', {
   translate: {
@@ -13,6 +14,13 @@ contextBridge.exposeInMainWorld('api', {
       }
       ipcRenderer.on('translate:chunk', listener)
       return () => { ipcRenderer.removeListener('translate:chunk', listener) }
+    },
+    onPhonetics: (id: string, callback: (phonetics: WordPhonetics | null) => void) => {
+      const listener = (_e: Electron.IpcRendererEvent, data: { id: string; phonetics: WordPhonetics | null }) => {
+        if (data.id === id) callback(data.phonetics)
+      }
+      ipcRenderer.on('translate:phonetics', listener)
+      return () => { ipcRenderer.removeListener('translate:phonetics', listener) }
     },
     onDone: (id: string, callback: () => void) => {
       const listener = (_e: Electron.IpcRendererEvent, data: { id: string }) => {
