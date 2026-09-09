@@ -12,7 +12,7 @@
     "build:selection": "node scripts/build-selection.cjs",
     "start": "electron-vite preview",
     "build:win": "node scripts/build-selection.cjs && electron-vite build && electron-builder --win --publish never",
-    "build:mac": "echo \"Mac build is not supported yet\" && exit 1",
+    "build:mac": "node scripts/build-selection.cjs && electron-vite build && electron-builder --mac --arm64 --publish never",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json --composite false",
     "typecheck": "pnpm typecheck:node && pnpm typecheck:web"

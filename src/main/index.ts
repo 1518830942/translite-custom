@@ -1,4 +1,4 @@
-import { app, BrowserWindow, clipboard, globalShortcut, Menu, nativeImage, screen, Tray, type Rectangle } from 'electron'
+import { app, BrowserWindow, clipboard, globalShortcut, Menu, nativeImage, screen, systemPreferences, Tray, type Rectangle } from 'electron'
 import { join } from 'path'
 import Store from 'electron-store'
 import { registerIpcHandlers } from './ipc-handlers'
@@ -39,7 +39,9 @@ function loadIcon(name: string): Electron.NativeImage {
 }
 
 function loadTrayIcon(): Electron.NativeImage {
-  return loadIcon('tray-icon.png')
+  const icon = loadIcon('tray-icon.png')
+  if (process.platform === 'darwin') icon.setTemplateImage(true)
+  return icon
 }
 
 function loadWindowIcon(): Electron.NativeImage {
@@ -89,6 +91,7 @@ function showWindow() {
   if (!mainWindow || mainWindow.isDestroyed()) return
   if (mainWindow.isMinimized()) mainWindow.restore()
   mainWindow.show()
+  if (process.platform === 'darwin') app.focus({ steal: true })
   // Windows may decline focus after asynchronous selection copying. Raise the
   // existing window explicitly without changing the user's always-on-top setting.
   mainWindow.moveTop()
@@ -106,10 +109,15 @@ async function activateWindow() {
   if (!mainWindow || capturingSelection) return
   capturingSelection = true
   try {
-    if (process.platform === 'win32') {
+    if (process.platform === 'win32' || process.platform === 'darwin') {
+      if (process.platform === 'darwin' && !systemPreferences.isTrustedAccessibilityClient(true)) {
+        showWindow()
+        return
+      }
       // Keep the source window focused until copying has completed.
       const text = await new Promise<string | null>((resolve) => {
-        execFile(resolveIconPath('selection-copy.exe'), [], {
+        const helper = process.platform === 'win32' ? 'selection-copy.exe' : 'selection-copy-macos'
+        execFile(resolveIconPath(helper), [], {
           windowsHide: true, timeout: 3500, maxBuffer: 4 * 1024 * 1024,
         }, (error, stdout) => {
           resolve(error ? null : Buffer.from(stdout.trim(), 'base64').toString('utf8'))

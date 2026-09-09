@@ -5,6 +5,9 @@ release/
 .tmp/
 *.log
 build/selection-copy.exe
+build/selection-copy-macos
+build/icon.icns
+build/icon.iconset/
 local-package/
 local-auto-translate.asar
 .env

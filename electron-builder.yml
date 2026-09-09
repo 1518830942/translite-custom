@@ -22,6 +22,18 @@ win:
       arch: [x64]
   icon: build/icon.ico
   artifactName: translite-custom-${version}-win-x64-setup.${ext}
+mac:
+  extraResources:
+    - from: build/selection-copy-macos
+      to: selection-copy-macos
+  target:
+    - target: dmg
+      arch: [arm64]
+    - target: zip
+      arch: [arm64]
+  icon: build/icon.icns
+  category: public.app-category.productivity
+  artifactName: translite-custom-${version}-mac-arm64.${ext}
 nsis:
   oneClick: false
   perMachine: false
