@@ -19,7 +19,10 @@
 
 ### Windows 安装包构建
 
-- Description: `pnpm build:win` 先清理 `release/`，再执行 electron-vite 构建与 electron-builder Windows 打包；安装包输出到 `release/`
+- Description: `pnpm build:win` 先编译 Windows 原生助手，再执行 electron-vite 构建与 electron-builder Windows 打包；安装包输出到 `release/`
+- Entry: `package.json` (`scripts.build:win`)
+- Core: `scripts/build-selection.cjs`, `electron-builder.yml` (`directories.output`, `win.artifactName`)
+- Notes: 安装包命名为 `translite-custom-${version}-win-x64-setup.exe`
 
 ### Apple 芯片 Mac 安装包构建
 
@@ -27,9 +30,7 @@
 - Entry: `package.json` / `scripts/build-selection.cjs` / `electron-builder.yml`
 - Native helper: `src/native/SelectionCopy.swift`
 - Description: 在 Apple 芯片 Mac 上编译 arm64 取词助手，并输出 arm64 DMG 与 ZIP；首次取词由 macOS 请求辅助功能权限
-- Entry: `package.json` (`scripts.build:win`)
-- Core: `package.json` (`build:win` 脚本), `electron-builder.yml` (`directories.output`, `win.artifactName`)
-- Notes: 当前安装包命名格式为 `${name}-${version}-setup.${ext}`；发布前需确认用户已在宿主机完成对应版本号安装包打包
+- Notes: 产物命名为 `translite-custom-${version}-mac-arm64.dmg` / `.zip`；Mac 默认快捷键为 `Control+D`，Windows 仍为 `Alt+E`，已有自定义设置保留
 
 ## Electron Main
 

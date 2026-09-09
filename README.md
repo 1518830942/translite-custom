@@ -7,11 +7,11 @@
 1. 在 [Releases](https://github.com/1518830942/translite-custom/releases/latest) 下载 Windows x64 安装包，或 Apple 芯片 Mac 的 `mac-arm64.dmg` / `mac-arm64.zip`。
 2. Windows 10/11 x64 运行安装程序；Apple 芯片 Mac 打开 DMG 后将 Translite 拖入“应用程序”。使用者无需安装 Node.js 或开发工具。
 3. 首次启动填写自己的 OpenAI 兼容 API Base URL、API Key 和模型名称。
-4. 在浏览器等应用选中文字，按下并松开 **Alt+E**（Mac 为 **Option+E**），自动复制、弹窗并翻译。
+4. 在浏览器等应用选中文字，Windows 按下并松开 **Alt+E**，Mac 使用 **Control+D**（不是 Command+D），自动复制、弹窗并翻译。
 
 macOS 首次一键取词时会请求“辅助功能”权限。请在“系统设置 → 隐私与安全性 → 辅助功能”中允许 Translite，然后再次按快捷键。该权限仅用于模拟 `Command+C` 复制当前选择；未授权时应用只显示窗口，不会读取旧剪贴板内容。
 
-新安装默认快捷键为 `Alt+E`，已有安装保留保存的快捷键。可在软件菜单中修改。安装包不包含任何 API 密钥、公司配置、翻译记录或个人账户信息。
+新安装在 Windows 默认 `Alt+E`，在 Mac 默认 `Control+D`。已有安装保留保存的快捷键；Mac 升级后如仍使用旧快捷键，可在菜单中重新录制 Control+D。安装包不包含任何 API 密钥、公司配置、翻译记录或个人账户信息。
 
 ## 定制功能
 

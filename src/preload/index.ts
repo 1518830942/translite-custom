@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import type { WordPhonetics } from '../shared/phonetics'
 
 contextBridge.exposeInMainWorld('api', {
+  platform: process.platform,
   translate: {
     start: (text: string, to: string, mode?: string) => {
       const id = Math.random().toString(36).slice(2)

@@ -21,7 +21,7 @@ const windowBoundsKey = 'windowBounds'
 const closeBehaviorKey = 'closeBehavior'
 const shortcutKey = 'globalShortcut'
 const openAtLoginKey = 'openAtLogin'
-const defaultShortcut = 'Alt+E'
+const defaultShortcut = process.platform === 'darwin' ? 'Control+D' : 'Alt+E'
 const minWidth = 360
 const minHeight = 420
 let registeredShortcut = ''
@@ -287,6 +287,10 @@ function createWindow() {
   })
 
   registerIpcHandlers(mainWindow, closeWindow, registerGlobalShortcut, suspendGlobalShortcut, resumeGlobalShortcut)
+}
+
+if (process.platform === 'darwin') {
+  app.on('activate', showWindow)
 }
 
 app.on('second-instance', () => {

@@ -19,7 +19,7 @@ type TranslateMode = 'translate' | 'polish' | 'explain'
 const allLanguageCodes: LanguageCode[] = ['zh', 'en', 'ja']
 const defaultPreferredLanguage: LanguageCode = 'en'
 const defaultFallbackLanguage: LanguageCode = 'zh'
-const defaultShortcut = 'Alt+E'
+const defaultShortcut = window.api.platform === 'darwin' ? 'Control+D' : 'Alt+E'
 
 function hasValidTranslateSource(config: ApiConfig): boolean {
   return Boolean(config.baseURL.trim() && config.apiKey.trim() && config.model.trim())

@@ -1,6 +1,7 @@
 import type { WordPhonetics } from '../shared/phonetics'
 
 interface ElectronAPI {
+  platform: string
   translate: {
     start: (text: string, to: string, mode?: string) => string
     onChunk: (id: string, callback: (chunk: string) => void) => () => void

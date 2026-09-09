@@ -24,7 +24,12 @@ const SPECIAL_KEYS: Record<string, string> = {
 
 const MODIFIER_KEY_NAMES = ['Alt', 'AltGraph', 'Control', 'Shift', 'Meta']
 
-function keyToAccelerator(key: string): string {
+function keyToAccelerator(key: string, code: string): string {
+  // Option changes e.key into a composed character or "Dead" on macOS.
+  if (window.api.platform === 'darwin') {
+    if (/^Key[A-Z]$/.test(code)) return code.slice(3)
+    if (/^Digit[0-9]$/.test(code)) return code.slice(5)
+  }
   if (key.startsWith('F') && /^F\d{1,2}$/.test(key)) return key
   if (key.length === 1) return key.toUpperCase()
   return SPECIAL_KEYS[key] || key
@@ -81,7 +86,7 @@ export default function ShortcutSettingsModal({ value, onSave, onClose }: Shortc
       }
 
       const parts = [...mods]
-      parts.push(keyToAccelerator(e.key))
+      parts.push(keyToAccelerator(e.key, e.code))
       const accelerator = parts.join('+')
 
       setDisplay(accelerator)
