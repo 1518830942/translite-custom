@@ -1,4 +1,4 @@
-name: Build Apple Silicon macOS
+name: Build Windows and Apple Silicon macOS
 
 on:
   workflow_dispatch:
@@ -48,8 +48,50 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  build-windows:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: pnpm/action-setup@v4
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Check types and platform behavior
+        run: |
+          pnpm typecheck
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/test-mac-shortcuts.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/test-window-raise.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/test-phonetics.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Build Windows x64 installer
+        run: pnpm build:win
+      - name: Verify Windows payload and create checksum
+        run: |
+          if (!(Test-Path 'release/win-unpacked/resources/selection-copy.exe')) { throw 'Native helper missing' }
+          $env:ELECTRON_RUN_AS_NODE = '1'
+          & 'release/win-unpacked/Translite.exe' -e 'if (process.arch !== "x64") process.exit(1); console.log("Packaged x64 runtime started")'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $installer = Get-ChildItem 'release/translite-custom-*-win-x64-setup.exe'
+          if (@($installer).Count -ne 1) { throw 'Expected exactly one Windows installer' }
+          $hash = (Get-FileHash $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $($installer.Name)" | Set-Content 'release/SHA256SUMS-win.txt' -Encoding ascii
+      - uses: actions/upload-artifact@v4
+        with:
+          name: translite-win-x64
+          path: |
+            release/translite-custom-*-win-x64-setup.exe
+            release/SHA256SUMS-win.txt
+          if-no-files-found: error
+          retention-days: 14
+
   publish:
-    needs: build
+    needs: [build, build-windows]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -59,12 +101,16 @@ jobs:
         with:
           name: translite-mac-arm64
           path: release
-      - name: Publish macOS test release
+      - uses: actions/download-artifact@v4
+        with:
+          name: translite-win-x64
+          path: release
+      - name: Publish Windows and macOS release
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
           VERSION=$(node -p "require('./package.json').version")
-          gh release create "v$VERSION" release/*.dmg release/*.zip release/SHA256SUMS-mac.txt \
-            --target "$GITHUB_SHA" --title "v$VERSION · Apple 芯片 Mac 测试版" \
-            --notes-file docs/releases/mac-install.md --prerelease --latest=false
+          gh release create "v$VERSION" release/*.exe release/*.dmg release/*.zip release/SHA256SUMS-*.txt \
+            --target "$GITHUB_SHA" --title "v$VERSION · Windows 与 Apple 芯片 Mac" \
+            --notes-file docs/releases/desktop-install.md --latest
