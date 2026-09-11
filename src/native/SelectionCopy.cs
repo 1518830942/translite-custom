@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading;
 using System.Windows.Forms;
 
+
 public static class SelectionCopy
 {
     [StructLayout(LayoutKind.Sequential)]
@@ -42,6 +43,28 @@ public static class SelectionCopy
         return false;
     }
 
+    // Only a confirmed empty selection skips copying; unsupported providers fall back.
+    static bool TryHasSelection(out bool hasSelection)
+    {
+        bool selected = false;
+        bool known = false;
+        var worker = new Thread(() => {
+            try
+            {
+                bool? value = SelectionProbe.Read();
+                selected = value.GetValueOrDefault();
+                known = value.HasValue;
+            }
+            catch (Exception) { /* Unsupported or busy provider: use the existing copy path. */ }
+        });
+        worker.IsBackground = true;
+        worker.SetApartmentState(ApartmentState.MTA);
+        worker.Start();
+        bool completed = worker.Join(350);
+        hasSelection = completed && selected;
+        return completed && known;
+    }
+
     public static string Capture()
     {
         IntPtr foreground = GetForegroundWindow();
@@ -52,6 +75,13 @@ public static class SelectionCopy
         {
             if (timer.ElapsedMilliseconds > 1500 || GetForegroundWindow() != foreground) return null;
             Thread.Sleep(10);
+        }
+        if (GetForegroundWindow() != foreground) return null;
+        bool hasSelection;
+        if (TryHasSelection(out hasSelection))
+        {
+            if (GetForegroundWindow() != foreground) return null;
+            if (!hasSelection) return null;
         }
         if (GetForegroundWindow() != foreground) return null;
         uint sequence = GetClipboardSequenceNumber();

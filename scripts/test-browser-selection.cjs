@@ -1,0 +1,31 @@
+const { app, BrowserWindow } = require('electron')
+const { execFile } = require('node:child_process')
+const { join } = require('node:path')
+const assert = require('node:assert/strict')
+app.setPath('userData', join(app.getPath('temp'), 'translite-selection-test'))
+app.commandLine.appendSwitch('enable-features', 'UiaProvider')
+const helper = process.argv[2] || join(__dirname, '../build/selection-copy.exe')
+const run = args => new Promise(resolve => execFile(helper, args, { windowsHide: true, timeout: 3500 }, (error, stdout) => resolve(error ? null : Buffer.from(stdout, 'base64').toString('utf8'))))
+app.whenReady().then(async () => {
+  app.setAccessibilitySupportEnabled(true)
+  const win = new BrowserWindow({ width: 480, height: 180 })
+  try {
+    await win.loadURL('data:text/html,<p id="word">Browser selection fixture</p>')
+    await run(['--activate', win.getNativeWindowHandle().readBigUInt64LE().toString(), String(process.pid)])
+    await win.webContents.executeJavaScript(`window.copies = 0; document.addEventListener('copy', () => window.copies++); const range = document.createRange(); range.selectNodeContents(document.getElementById('word')); getSelection().removeAllRanges(); getSelection().addRange(range);`)
+    const selected = await run([])
+    assert.equal(selected?.trim(), 'Browser selection fixture')
+    await win.webContents.executeJavaScript('getSelection().removeAllRanges()')
+    const copiesBefore = await win.webContents.executeJavaScript('window.copies')
+    const started = Date.now()
+    assert.equal(await run([]), null)
+    const elapsed = Date.now() - started
+    assert.equal(await win.webContents.executeJavaScript('window.copies'), copiesBefore, 'No selection must not trigger Ctrl+C')
+    assert(elapsed < 700, `Empty browser selection took ${elapsed} ms`)
+    console.log(`PASS: Chromium selected text preserved; empty selection ${elapsed} ms, no Ctrl+C`)
+    app.exit(0)
+  } catch (error) {
+    console.error(error.message)
+    app.exit(1)
+  }
+})

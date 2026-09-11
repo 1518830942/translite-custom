@@ -9,6 +9,7 @@ if (process.platform === 'win32') {
     '/nologo', '/target:exe', '/platform:x64', '/optimize+',
     '/reference:System.Windows.Forms.dll', '/out:' + join(root, 'build/selection-copy.exe'),
     join(root, 'src/native/SelectionCopy.cs'),
+    join(root, 'src/native/SelectionProbe.cs'),
   ], { cwd: root, windowsHide: true, stdio: 'inherit' })
 } else if (process.platform === 'darwin') {
   execFileSync('xcrun', [
