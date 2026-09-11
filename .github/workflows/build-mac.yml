@@ -75,8 +75,10 @@ jobs:
         run: |
           if (!(Test-Path 'release/win-unpacked/resources/selection-copy.exe')) { throw 'Native helper missing' }
           $env:ELECTRON_RUN_AS_NODE = '1'
-          & 'release/win-unpacked/Translite.exe' -e 'if (process.arch !== "x64") process.exit(1); console.log("Packaged x64 runtime started")'
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $runtimeScript = Join-Path $env:RUNNER_TEMP 'translite-runtime-check.cjs'
+          'if (process.arch !== "x64") process.exit(1); console.log("Packaged x64 runtime started")' | Set-Content $runtimeScript -Encoding ascii
+          $runtime = Start-Process -FilePath (Resolve-Path 'release/win-unpacked/Translite.exe').Path -ArgumentList ('"' + $runtimeScript + '"') -Wait -PassThru -WindowStyle Hidden
+          if ($runtime.ExitCode -ne 0) { throw 'Packaged x64 runtime failed' }
           $installer = Get-ChildItem 'release/translite-custom-*-win-x64-setup.exe'
           if (@($installer).Count -ne 1) { throw 'Expected exactly one Windows installer' }
           $hash = (Get-FileHash $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
