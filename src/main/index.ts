@@ -2,7 +2,7 @@ import { app, BrowserWindow, clipboard, globalShortcut, Menu, nativeImage, scree
 import { join } from 'path'
 import Store from 'electron-store'
 import { registerIpcHandlers } from './ipc-handlers'
-import { execFile } from 'node:child_process'
+import { execFile, type ChildProcess } from 'node:child_process'
 
 type CloseBehavior = 'tray' | 'quit'
 
@@ -26,6 +26,7 @@ const minWidth = 360
 const minHeight = 420
 let registeredShortcut = ''
 let capturingSelection = false
+let nativeFocusProcess: ChildProcess | null = null
 
 function resolveIconPath(name: string): string {
   if (app.isPackaged) {
@@ -125,6 +126,11 @@ function sendClipboardTextToInput() {
   if (text) mainWindow.webContents.send('input:setFromClipboard', text)
 }
 
+function hideWindowOnBlur() {
+  if (isQuitting || !mainWindow || mainWindow.isDestroyed() || !mainWindow.isVisible()) return
+  closeWindow('tray')
+}
+
 async function activateWindow() {
   if (!mainWindow || capturingSelection) return
   capturingSelection = true
@@ -150,16 +156,19 @@ async function activateWindow() {
       sendClipboardTextToInput()
     }
     showWindowNearCursor(cursorPoint)
-    if (process.platform === 'win32' && mainWindow && !mainWindow.isDestroyed()) {
+    if (process.platform === 'win32' && mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible()) {
       const handle = mainWindow.getNativeWindowHandle()
       const windowId = (handle.length === 8 ? handle.readBigUInt64LE() : BigInt(handle.readUInt32LE())).toString()
       // Check actual Windows foreground ownership; Electron focus() is best effort.
       const activated = await new Promise<boolean>((resolve) => {
-        execFile(resolveIconPath('selection-copy.exe'), ['--activate', windowId, String(process.pid)], {
+        nativeFocusProcess = execFile(resolveIconPath('selection-copy.exe'), ['--activate', windowId, String(process.pid)], {
           windowsHide: true, timeout: 1500,
-        }, (error) => resolve(!error))
+        }, (error) => {
+          nativeFocusProcess = null
+          resolve(!error)
+        })
       })
-      if (!activated && mainWindow && !mainWindow.isDestroyed()) mainWindow.flashFrame(true)
+      if (!activated && mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible()) mainWindow.flashFrame(true)
     }
   } finally {
     capturingSelection = false
@@ -252,6 +261,9 @@ function createTray() {
 
 function closeWindow(behavior = store.get(closeBehaviorKey, 'tray') as CloseBehavior) {
   saveWindowBounds()
+  // Do not let an in-flight Windows foreground helper undo a user's dismissal.
+  nativeFocusProcess?.kill()
+  nativeFocusProcess = null
   if (behavior === 'quit') {
     quitApp()
     return
@@ -289,6 +301,7 @@ function createWindow() {
 
   mainWindow.on('moved', saveWindowBounds)
   mainWindow.on('resized', saveWindowBounds)
+  mainWindow.on('blur', hideWindowOnBlur)
 
   mainWindow.on('close', (e) => {
     saveWindowBounds()

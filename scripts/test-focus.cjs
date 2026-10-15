@@ -16,7 +16,7 @@ app.whenReady().then(async () => {
     const functions = text.slice(text.indexOf('function showWindowNearCursor('), text.indexOf('function normalizeShortcut('))
     const js = ts.transpile(functions, { target: ts.ScriptTarget.ES2022 })
     const activate = new Function('mainWindow', 'execFile', 'resolveIconPath', 'process', 'Buffer', 'screen',
-      'let capturingSelection = false;\n' + js + '\nreturn activateWindow;')(
+      'let capturingSelection = false; let nativeFocusProcess = null;\n' + js + '\nreturn activateWindow;')(
         win, execFile, name => join(__dirname, '../build', name), process, Buffer, screen)
     const foreground = () => execFileSync(join(__dirname, '../out/FocusSource.exe'), ['query'], { windowsHide: true, encoding: 'utf8' }).trim()
     const targetHandle = win.getNativeWindowHandle().readBigUInt64LE().toString()

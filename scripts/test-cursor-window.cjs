@@ -9,16 +9,18 @@ const js = ts.transpile(functions, { target: ts.ScriptTarget.ES2022 })
 function fixture({ point = { x: 500, y: 300 }, area = { x: 0, y: 0, width: 1920, height: 1040 }, minimized = false, platform = 'win32', trusted = true } = {}) {
   const events = []
   let cursor = point
+  let visible = false
   let destroyed = false
   let selectionCallback
   const bounds = { x: 10, y: 10, width: 420, height: 500 }
   const window = {
     isDestroyed: () => destroyed,
+    isVisible: () => visible,
     isMinimized: () => minimized,
     restore: () => { minimized = false; events.push('restore') },
     getBounds: () => ({ ...bounds }),
     setPosition: (x, y) => { Object.assign(bounds, { x, y }); events.push('position') },
-    show: () => events.push('show'), moveTop() {}, focus() {}, flashFrame() {},
+    show: () => { visible = true; events.push('show') }, moveTop() {}, focus() {}, flashFrame() {},
     getNativeWindowHandle: () => Buffer.alloc(8),
     webContents: { send: (channel, text) => events.push({ channel, text }) },
   }
@@ -31,7 +33,7 @@ function fixture({ point = { x: 500, y: 300 }, area = { x: 0, y: 0, width: 1920,
     else { events.push('capture'); selectionCallback = callback }
   }
   const api = new Function('mainWindow', 'screen', 'process', 'app', 'systemPreferences', 'clipboard', 'execFile', 'Buffer', 'resolveIconPath',
-    'let capturingSelection = false;\n' + js + ';return { showWindowNearCursor, showWindow, activateWindow };')(
+    'let capturingSelection = false; let nativeFocusProcess = null;\n' + js + ';return { showWindowNearCursor, showWindow, activateWindow };')(
       window, screen, { platform, pid: 123 }, { focus() {} }, { isTrustedAccessibilityClient: () => trusted },
       { readText: () => '' }, execFile, Buffer, name => name)
   return { ...api, bounds, events, moveCursor: point => { cursor = point }, destroy: () => { destroyed = true },
