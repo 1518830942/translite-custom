@@ -1,4 +1,4 @@
-const { app, BrowserWindow } = require('electron')
+const { app, BrowserWindow, screen } = require('electron')
 const { spawn, execFile, execFileSync } = require('node:child_process')
 const { readFileSync } = require('node:fs')
 const { join } = require('node:path')
@@ -13,11 +13,11 @@ app.whenReady().then(async () => {
     await win.loadURL('data:text/html,Translite focus regression target')
     const text = readFileSync(join(__dirname, '../src/main/index.ts'), 'utf8')
     // Exercise the actual activation functions without starting the production app/API.
-    const functions = text.slice(text.indexOf('function showWindow()'), text.indexOf('function normalizeShortcut('))
+    const functions = text.slice(text.indexOf('function showWindowNearCursor('), text.indexOf('function normalizeShortcut('))
     const js = ts.transpile(functions, { target: ts.ScriptTarget.ES2022 })
-    const activate = new Function('mainWindow', 'execFile', 'resolveIconPath', 'process', 'Buffer',
+    const activate = new Function('mainWindow', 'execFile', 'resolveIconPath', 'process', 'Buffer', 'screen',
       'let capturingSelection = false;\n' + js + '\nreturn activateWindow;')(
-        win, execFile, name => join(__dirname, '../build', name), process, Buffer)
+        win, execFile, name => join(__dirname, '../build', name), process, Buffer, screen)
     const foreground = () => execFileSync(join(__dirname, '../out/FocusSource.exe'), ['query'], { windowsHide: true, encoding: 'utf8' }).trim()
     const targetHandle = win.getNativeWindowHandle().readBigUInt64LE().toString()
     for (let i = 0; i < 10; i++) {

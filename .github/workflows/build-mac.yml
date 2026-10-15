@@ -25,6 +25,7 @@ jobs:
         run: |
           pnpm typecheck
           node scripts/test-mac-shortcuts.cjs
+          node scripts/test-cursor-window.cjs
           node scripts/test-phonetics.cjs
       - name: Build arm64 DMG and ZIP
         run: pnpm build:mac
@@ -64,6 +65,8 @@ jobs:
           pnpm typecheck
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node scripts/test-mac-shortcuts.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/test-cursor-window.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node scripts/test-window-raise.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

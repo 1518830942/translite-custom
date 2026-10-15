@@ -1,4 +1,4 @@
-import { app, BrowserWindow, clipboard, globalShortcut, Menu, nativeImage, screen, systemPreferences, Tray, type Rectangle } from 'electron'
+import { app, BrowserWindow, clipboard, globalShortcut, Menu, nativeImage, screen, systemPreferences, Tray, type Point, type Rectangle } from 'electron'
 import { join } from 'path'
 import Store from 'electron-store'
 import { registerIpcHandlers } from './ipc-handlers'
@@ -87,6 +87,26 @@ function saveWindowBounds() {
   store.set(windowBoundsKey, mainWindow.getBounds())
 }
 
+function showWindowNearCursor(point: Point) {
+  if (!mainWindow || mainWindow.isDestroyed()) return
+  if (mainWindow.isMinimized()) mainWindow.restore()
+
+  const { width, height } = mainWindow.getBounds()
+  const area = screen.getDisplayNearestPoint(point).workArea
+  const gap = 12
+  // Cursor coordinates, work areas and window bounds are all in DIP units.
+  const x = point.x + gap + width <= area.x + area.width
+    ? point.x + gap : point.x - width - gap
+  const y = point.y + gap + height <= area.y + area.height
+    ? point.y + gap : point.y - height - gap
+  mainWindow.setPosition(
+    Math.max(area.x, Math.min(x, area.x + area.width - width)),
+    Math.max(area.y, Math.min(y, area.y + area.height - height)),
+    false,
+  )
+  showWindow()
+}
+
 function showWindow() {
   if (!mainWindow || mainWindow.isDestroyed()) return
   if (mainWindow.isMinimized()) mainWindow.restore()
@@ -109,9 +129,10 @@ async function activateWindow() {
   if (!mainWindow || capturingSelection) return
   capturingSelection = true
   try {
+    const cursorPoint = screen.getCursorScreenPoint()
     if (process.platform === 'win32' || process.platform === 'darwin') {
       if (process.platform === 'darwin' && !systemPreferences.isTrustedAccessibilityClient(true)) {
-        showWindow()
+        showWindowNearCursor(cursorPoint)
         return
       }
       // Keep the source window focused until copying has completed.
@@ -128,7 +149,7 @@ async function activateWindow() {
     } else {
       sendClipboardTextToInput()
     }
-    showWindow()
+    showWindowNearCursor(cursorPoint)
     if (process.platform === 'win32' && mainWindow && !mainWindow.isDestroyed()) {
       const handle = mainWindow.getNativeWindowHandle()
       const windowId = (handle.length === 8 ? handle.readBigUInt64LE() : BigInt(handle.readUInt32LE())).toString()
