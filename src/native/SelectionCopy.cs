@@ -44,13 +44,13 @@ public static class SelectionCopy
     }
 
     // Only a confirmed empty selection skips copying; unsupported providers fall back.
-    static SelectionProbe.State ReadSelection()
+    static SelectionProbe.Result ReadSelection()
     {
-        var state = SelectionProbe.State.Unknown;
+        var result = new SelectionProbe.Result(SelectionProbe.State.Unknown);
         var worker = new Thread(() => {
             try
             {
-                state = SelectionProbe.Read();
+                result = SelectionProbe.Read();
             }
             catch (Exception) { /* Unsupported or busy provider: use the existing copy path. */ }
         });
@@ -58,7 +58,7 @@ public static class SelectionCopy
         worker.SetApartmentState(ApartmentState.MTA);
         worker.Start();
         bool completed = worker.Join(350);
-        return completed ? state : SelectionProbe.State.Unknown;
+        return completed ? result : new SelectionProbe.Result(SelectionProbe.State.Unknown);
     }
 
     public static string Capture()
@@ -75,7 +75,7 @@ public static class SelectionCopy
         if (GetForegroundWindow() != foreground) return null;
         var selection = ReadSelection();
         if (GetForegroundWindow() != foreground) return null;
-        if (selection == SelectionProbe.State.Menu)
+        if (selection.State == SelectionProbe.State.Menu)
         {
             // Releasing Alt before the shortcut letter can leave the source's
             // menu focused. Escape only a confirmed menu, never the document:
@@ -85,14 +85,29 @@ public static class SelectionCopy
             Thread.Sleep(20);
             if (GetForegroundWindow() != foreground) return null;
             selection = ReadSelection();
-            if (selection == SelectionProbe.State.Menu) return null;
+            if (selection.State == SelectionProbe.State.Menu) return null;
         }
         if (GetForegroundWindow() != foreground) return null;
-        if (selection == SelectionProbe.State.Empty) return null;
+        if (selection.State == SelectionProbe.State.Empty && selection.RefocusDocument != null)
+        {
+            // A chat page can retain a document selection while UIA reports
+            // only the empty input caret. Refocus once, then check again;
+            // never send Ctrl+C just to test an apparently empty document.
+            try
+            {
+                selection.RefocusDocument();
+                Thread.Sleep(20);
+                if (GetForegroundWindow() != foreground) return null;
+                selection = ReadSelection();
+            }
+            catch (Exception) { return null; /* Do not copy a previous answer if focus recovery fails. */ }
+        }
+        if (GetForegroundWindow() != foreground) return null;
+        if (selection.State == SelectionProbe.State.Empty) return null;
         // Legacy menu filters (for example WinForms MenuStrip) can consume copy
         // while UIA still reports the old edit control without a TextPattern.
         // Alt-down exits that mode; holding Ctrl before Alt-up prevents reentry.
-        if (selection == SelectionProbe.State.Unknown)
+        if (selection.State == SelectionProbe.State.Unknown)
         {
             var reset = new[] { Key(0x12, false), Key(0x11, false), Key(0x12, true), Key(0x11, true) };
             if (SendInput(4, reset, Marshal.SizeOf(typeof(Input))) != 4) return null;

@@ -8,6 +8,17 @@ internal static class SelectionProbe
 {
     public enum State { Unknown, Empty, Selected, Menu }
 
+    public sealed class Result
+    {
+        public readonly State State;
+        public readonly Action RefocusDocument;
+        public Result(State state, Action refocusDocument = null)
+        {
+            State = state;
+            RefocusDocument = refocusDocument;
+        }
+    }
+
     [ComImport, Guid("30cbe57d-d9d0-452a-ab13-7ac5ac4825ee"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
     interface Automation
     {
@@ -47,37 +58,46 @@ internal static class SelectionProbe
         int CompareEndpoints(int start, Range range, int end);
     }
 
-    public static State Read()
+    public static Result Read()
     {
         var automation = (Automation)Activator.CreateInstance(Type.GetTypeFromCLSID(
             new Guid("ff48dba4-60ef-4201-aa87-54103eef594e")));
         var element = automation.GetFocusedElement();
         var walker = automation.GetControlViewWalker();
-        for (int depth = 0; element != null && depth < 8; depth++)
+        bool supportsSelection = false;
+        Element document = null;
+        for (int depth = 0; element != null && depth < 32; depth++)
         {
             // Alt release can focus a menu instead of the selected document.
             // Chromium exposes its native menu bar as a Pane named by class.
             int controlType = Convert.ToInt32(element.GetCurrentPropertyValue(30003));
+            if (controlType == 50030) document = element; // Document
             if (controlType == 50009 || controlType == 50010 || controlType == 50011 ||
                 Equals(element.GetCurrentPropertyValue(30012), "MenuBar"))
-                return State.Menu;
-            if (Equals(element.GetCurrentPropertyValue(30019), true)) return State.Unknown; // IsPassword
+                return new Result(State.Menu);
+            if (Equals(element.GetCurrentPropertyValue(30019), true)) return new Result(State.Unknown); // IsPassword
             if (Equals(element.GetCurrentPropertyValue(30040), true)) // IsTextPatternAvailable
             {
                 var pattern = (TextPattern)element.GetCurrentPattern(10014);
                 if (pattern.GetSupportedTextSelection() != 0)
                 {
+                    supportsSelection = true;
                     var ranges = pattern.GetSelection();
                     if (ranges != null) for (int i = 0; i < ranges.GetLength(); i++)
                     {
                         var range = ranges.GetElement(i);
-                        if (range.CompareEndpoints(0, range, 1) != 0) return State.Selected;
+                        if (range.CompareEndpoints(0, range, 1) != 0) return new Result(State.Selected);
                     }
-                    return State.Empty;
+                    // An empty focused input does not rule out a selection in
+                    // the containing document (for example a chat transcript).
                 }
             }
+            if (controlType == 50030 || controlType == 50032) break; // Document / Window
             element = walker.GetParentElement(element);
         }
-        return State.Unknown;
+        // Keep the timed probe read-only. The caller may refocus a document
+        // after this worker completes, never from a late/timed-out worker.
+        return new Result(supportsSelection ? State.Empty : State.Unknown,
+            document == null ? null : (Action)document.SetFocus);
     }
 }

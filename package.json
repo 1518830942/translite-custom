@@ -1,6 +1,6 @@
 {
   "name": "translite",
-  "version": "1.3.1",
+  "version": "1.3.2",
   "description": "Translite Custom - 选中文字，一键翻译与英美音标",
   "author": "1518830942",
   "license": "MIT",
@@ -17,7 +17,7 @@
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json --composite false",
     "typecheck": "pnpm typecheck:node && pnpm typecheck:web",
     "test:translation": "node scripts/test-streaming.cjs && node scripts/test-translation-session.cjs && node scripts/test-translation-ipc.cjs && node scripts/test-translation-client.cjs",
-    "test:selection": "node scripts/build-selection.cjs && electron scripts/test-hotkey-selection.cjs"
+    "test:selection": "node scripts/build-selection.cjs && electron scripts/test-hotkey-selection.cjs && electron scripts/test-document-selection.cjs"
   },
   "dependencies": {
     "electron-store": "^7.0.0",
