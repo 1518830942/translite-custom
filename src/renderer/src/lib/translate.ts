@@ -1,15 +1,21 @@
 import type { WordPhonetics } from '../../../shared/phonetics'
 
+export interface TranslationTask {
+  id: string
+  promise: Promise<string>
+  cancel: () => void
+}
+
 export function translateStream(
   text: string,
   to: string,
   onChunk: (chunk: string) => void,
   mode?: string,
   onPhonetics?: (phonetics: WordPhonetics | null) => void,
-): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const id = window.api.translate.start(text, to, mode)
-
+): TranslationTask {
+  const id = crypto.randomUUID()
+  let settled = false
+  const promise = new Promise<string>((resolve, reject) => {
     let result = ''
     const removePhonetics = window.api.translate.onPhonetics(id, (phonetics) => onPhonetics?.(phonetics))
 
@@ -27,16 +33,24 @@ export function translateStream(
       cleanup()
       reject(new Error(err))
     })
+    const removeCancelled = window.api.translate.onCancelled(id, () => {
+      cleanup()
+      const error = new Error('翻译已取消')
+      error.name = 'AbortError'
+      reject(error)
+    })
 
     function cleanup() {
+      settled = true
       removePhonetics()
       removeChunk()
       removeDone()
       removeError()
+      removeCancelled()
     }
+    // Cache hits may reply immediately; all listeners must exist before starting.
+    try { window.api.translate.start(id, text, to, mode) }
+    catch (error) { cleanup(); reject(error) }
   })
-}
-
-export function abortTranslate(id: string) {
-  window.api.translate.abort(id)
+  return { id, promise, cancel: () => { if (!settled) window.api.translate.abort(id) } }
 }

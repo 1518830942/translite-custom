@@ -26,8 +26,9 @@ function load(file) {
   new Function('require', 'module', 'exports', 'fetch', compiled)(mockRequire, module, module.exports, mockFetch)
   return module.exports
 }
-const { translate } = load(path.join(__dirname, '../src/main/translate/index.ts'))
+const { translate, clearTranslationCache } = load(path.join(__dirname, '../src/main/translate/index.ts'))
 async function run(text, mode, response) {
+  clearTranslationCache()
   responseBody = response
   let result = ''
   let phonetics

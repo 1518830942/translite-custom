@@ -24,6 +24,7 @@ jobs:
       - name: Check types and platform behavior
         run: |
           pnpm typecheck
+          pnpm test:translation
           node scripts/test-mac-shortcuts.cjs
           node scripts/test-cursor-window.cjs
           node scripts/test-auto-hide.cjs
@@ -64,6 +65,8 @@ jobs:
       - name: Check types and platform behavior
         run: |
           pnpm typecheck
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          pnpm test:translation
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node scripts/test-mac-shortcuts.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

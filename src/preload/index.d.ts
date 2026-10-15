@@ -3,11 +3,12 @@ import type { WordPhonetics } from '../shared/phonetics'
 interface ElectronAPI {
   platform: string
   translate: {
-    start: (text: string, to: string, mode?: string) => string
+    start: (id: string, text: string, to: string, mode?: string) => void
     onChunk: (id: string, callback: (chunk: string) => void) => () => void
     onPhonetics: (id: string, callback: (phonetics: WordPhonetics | null) => void) => () => void
     onDone: (id: string, callback: () => void) => () => void
     onError: (id: string, callback: (err: string) => void) => () => void
+    onCancelled: (id: string, callback: () => void) => () => void
     abort: (id: string) => void
   }
   store: {

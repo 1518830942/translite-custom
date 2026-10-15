@@ -2,11 +2,12 @@ interface InputPanelProps {
   value: string
   onChange: (v: string) => void
   onSubmit: (mode: 'translate' | 'polish' | 'explain') => void
+  onCancel: () => void
   loading: boolean
 }
 
-export default function InputPanel({ value, onChange, onSubmit, loading }: InputPanelProps) {
-  const canSubmit = Boolean(value.trim()) && !loading
+export default function InputPanel({ value, onChange, onSubmit, onCancel, loading }: InputPanelProps) {
+  const canSubmit = Boolean(value.trim())
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -28,25 +29,29 @@ export default function InputPanel({ value, onChange, onSubmit, loading }: Input
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={handleKeyDown}
-        disabled={loading}
         autoFocus
       />
       <div className="absolute right-3 bottom-4 flex items-center gap-1.5">
         <button
           type="button"
           className={`${btnBase} ${btnActive}`}
-          onClick={() => onSubmit('translate')}
-          disabled={!canSubmit}
-          title="翻译"
+          onClick={loading ? onCancel : () => onSubmit('translate')}
+          disabled={!loading && !canSubmit}
+          title={loading ? '停止翻译' : '翻译'}
+          aria-label={loading ? '停止翻译' : '翻译'}
         >
-          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="m5 8 6 6" />
-            <path d="m4 14 6-6 2-3" />
-            <path d="M2 5h12" />
-            <path d="M7 2h1" />
-            <path d="m22 22-5-10-5 10" />
-            <path d="M14 18h6" />
-          </svg>
+          {loading ? (
+            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2" /></svg>
+          ) : (
+            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="m5 8 6 6" />
+              <path d="m4 14 6-6 2-3" />
+              <path d="M2 5h12" />
+              <path d="M7 2h1" />
+              <path d="m22 22-5-10-5 10" />
+              <path d="M14 18h6" />
+            </svg>
+          )}
         </button>
         <button
           type="button"

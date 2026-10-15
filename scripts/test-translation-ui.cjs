@@ -1,0 +1,97 @@
+// Real renderer/preload, simulated IPC replies; no external API requests.
+const { app, BrowserWindow, ipcMain } = require('electron')
+const { join } = require('node:path')
+const assert = require('node:assert/strict')
+const root = process.argv[2] || join(__dirname, '..')
+app.setPath('userData', join(app.getPath('temp'), 'translite-clipboard-test'))
+const calls = []
+const config = { apiBaseURL: 'https://example.invalid/v1', apiKey: 'test', apiModel: 'test', targetLanguage: 'en', fallbackLanguage: 'zh' }
+let active
+ipcMain.handle('store:get', (_, key) => config[key] ?? null)
+ipcMain.handle('store:set', () => {})
+ipcMain.handle('window:setAlwaysOnTop', () => true)
+ipcMain.on('translate:start', (event, request) => {
+  if (active) event.sender.send('translate:cancelled', { id: active })
+  active = request.id
+  calls.push(request)
+})
+ipcMain.on('translate:abort', (event, id) => {
+  event.sender.send('translate:cancelled', { id })
+  if (active === id) active = null
+})
+const pause = () => new Promise(resolve => setTimeout(resolve, 30))
+async function until(check) {
+  for (let i = 0; i < 100; i++) { if (await check()) return; await pause() }
+  throw new Error('Timed out waiting for translation UI')
+}
+app.whenReady().then(async () => {
+  const win = new BrowserWindow({ width: 420, height: 500, show: false, webPreferences: { preload: join(root, 'out/preload/index.js'), sandbox: false } })
+  const has = text => win.webContents.executeJavaScript(`document.body.innerText.includes(${JSON.stringify(text)})`)
+  const stopping = () => win.webContents.executeJavaScript('Boolean(document.querySelector(\'button[aria-label="停止翻译"]\'))')
+  try {
+    await win.loadFile(join(root, 'out/renderer/index.html'))
+    await until(() => win.webContents.executeJavaScript('Boolean(document.querySelector("textarea"))'))
+    await new Promise(resolve => setTimeout(resolve, 150))
+    win.webContents.send('input:setFromClipboard', 'Hello world')
+    await until(() => calls.length === 1)
+    assert.equal(calls[0].to, 'zh')
+    win.webContents.send('translate:chunk', { id: calls[0].id, chunk: 'Early partial result' })
+    await until(() => has('Early partial result'))
+    assert(await stopping(), 'Result must be visible while still translating')
+    assert.equal(await win.webContents.executeJavaScript('document.querySelector("textarea").disabled'), false)
+
+    // New queries must start without an old completion event.
+    win.webContents.send('input:setFromClipboard', 'intermediate')
+    win.webContents.send('input:setFromClipboard', '你好世界')
+    await until(() => calls.length === 3)
+    assert.equal(calls[2].text, '你好世界')
+    assert.equal(calls[2].to, 'en')
+    win.webContents.send('translate:chunk', { id: calls[0].id, chunk: 'LATE OLD TEXT' })
+    win.webContents.send('translate:phonetics', { id: calls[1].id, phonetics: { uk: '/stale/', us: '/stale/' } })
+    win.webContents.send('translate:done', { id: calls[0].id })
+    await pause()
+    assert.equal(await has('LATE OLD TEXT'), false)
+    assert.equal(await has('/stale/'), false)
+    assert(await stopping(), 'Old completion must not stop the new request')
+    win.webContents.send('translate:chunk', { id: calls[2].id, chunk: 'New result' })
+    win.webContents.send('translate:done', { id: calls[2].id })
+    await until(() => has('New result'))
+    await until(async () => !(await stopping()))
+
+    win.webContents.send('input:setFromClipboard', 'hello')
+    await until(() => calls.length === 4)
+    win.webContents.send('translate:phonetics', { id: calls[3].id, phonetics: { uk: '/həˈləʊ/', us: '/həˈloʊ/' } })
+    win.webContents.send('translate:chunk', { id: calls[3].id, chunk: '你好；喂（用于问候或接电话）' })
+    win.webContents.send('translate:done', { id: calls[3].id })
+    await until(() => has('/həˈloʊ/'))
+    assert(await has('/həˈləʊ/'))
+    win.showInactive()
+    await new Promise(resolve => setTimeout(resolve, 200))
+    require('node:fs').writeFileSync(join(__dirname, '../out/phonetics-preview.png'), (await win.webContents.capturePage()).toPNG())
+    win.hide()
+
+    win.webContents.send('input:setFromClipboard', 'A whole sentence')
+    await until(() => calls.length === 5)
+    await until(async () => !(await has('/həˈloʊ/')))
+    win.webContents.send('translate:error', { id: calls[4].id, error: 'Fixture timeout' })
+    await until(() => has('Fixture timeout'))
+    await until(async () => !(await stopping()))
+    win.webContents.send('input:setFromClipboard', 'Cancel fixture')
+    await until(() => calls.length === 6)
+    win.webContents.send('translate:chunk', { id: calls[5].id, chunk: 'Partial before cancel' })
+    await until(() => has('Partial before cancel'))
+    await win.webContents.executeJavaScript('document.querySelector(\'button[aria-label="停止翻译"]\').click()')
+    await until(async () => !(await stopping()))
+    assert(await has('Partial before cancel'))
+    await win.webContents.executeJavaScript('document.querySelector(\'button[aria-label="翻译"]\').click()')
+    await until(() => calls.length === 7)
+    win.webContents.send('translate:chunk', { id: calls[6].id, chunk: 'Recovered result' })
+    win.webContents.send('translate:done', { id: calls[6].id })
+    await until(() => has('Recovered result'))
+    win.webContents.send('input:setFromClipboard', '   ')
+    await pause()
+    assert.equal(calls.length, 7)
+    console.log('PASS: early rendering, editable input, immediate latest query, stale-event isolation, UK/US phonetics, error recovery, stop/retry and empty clipboard')
+    app.exit(0)
+  } catch (error) { console.error(error); app.exit(1) }
+})

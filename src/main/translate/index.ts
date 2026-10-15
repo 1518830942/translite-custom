@@ -2,18 +2,13 @@ import Store from 'electron-store'
 import os from 'os'
 import fs from 'fs'
 import path from 'path'
-import { isSingleEnglishWord, parsePhonetics, type WordPhonetics } from '../../shared/phonetics'
+import { createHash } from 'node:crypto'
+import { isSingleEnglishWord } from '../../shared/phonetics'
+import { createTranslationEngine } from './session'
+import { readCompletion } from './streaming'
+import type { PreparedRequest, TranslateMode, TranslateOptions } from './types'
 
-export type TranslateMode = 'translate' | 'polish' | 'explain'
-
-export interface TranslateOptions {
-  text: string
-  to: string
-  mode?: TranslateMode
-  signal?: AbortSignal
-  onChunk: (chunk: string) => void
-  onPhonetics?: (phonetics: WordPhonetics | null) => void
-}
+export type { TranslateMode, TranslateOptions } from './types'
 
 const store = new Store()
 
@@ -117,11 +112,16 @@ function appendRequestLog(entry: object): void {
     String(now.getDate()).padStart(2, '0'),
   ].join('')
   const logFile = path.join(logDir, `${dateStr}.jsonl`)
-  fs.mkdirSync(logDir, { recursive: true })
-  fs.appendFileSync(logFile, JSON.stringify(entry) + '\n')
+  // Logging must neither delay completion nor turn a successful translation into an error.
+  try {
+    const line = JSON.stringify(entry) + '\n'
+    void fs.promises.mkdir(logDir, { recursive: true })
+      .then(() => fs.promises.appendFile(logFile, line))
+      .catch(() => {})
+  } catch { /* Optional diagnostics may be unavailable. */ }
 }
 
-export async function translate({ text, to, mode = 'translate', signal, onChunk, onPhonetics }: TranslateOptions): Promise<void> {
+function prepareRequest({ text, to, mode = 'translate' }: TranslateOptions): PreparedRequest {
   const apiKey = store.get('apiKey', '') as string
   if (!apiKey) {
     throw new Error('API Key not configured')
@@ -165,72 +165,23 @@ export async function translate({ text, to, mode = 'translate', signal, onChunk,
     response_format: { type: 'json_object' },
   }
 
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify(requestBody),
-    signal,
-  })
-
-  if (!response.ok) {
-    const errText = await response.text()
-    throw new Error(`API error: ${response.status} ${errText}`)
-  }
-
-  const reader = response.body!.getReader()
-  const decoder = new TextDecoder()
-  let sseBuffer = ''
-  let fullContent = ''
-  let usage: Record<string, unknown> | undefined
-
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-
-    sseBuffer += decoder.decode(value, { stream: true })
-    const lines = sseBuffer.split('\n')
-    sseBuffer = lines.pop() || ''
-
-    for (const line of lines) {
-      const trimmed = line.trim()
-      if (!trimmed || !trimmed.startsWith('data: ')) continue
-      const data = trimmed.slice(6)
-      if (data === '[DONE]') continue
-
-      try {
-        const json = JSON.parse(data)
-        const content = json.choices?.[0]?.delta?.content
-        if (content) {
-          fullContent += content
-        }
-        if (json.usage) {
-          usage = json.usage as Record<string, unknown>
-        }
-      } catch {
-        // skip malformed JSON
-      }
-    }
-  }
-
-  let resultText: string
-  try {
-    const parsed = JSON.parse(fullContent)
-    if (withPhonetics) onPhonetics?.(parsePhonetics(parsed.phonetics))
-    resultText = parsed.result || ''
-    onChunk(resultText)
-  } catch {
-    resultText = fullContent
-    onChunk(fullContent)
-  }
-
-  appendRequestLog({
-    timestamp: new Date().toISOString(),
-    url: endpoint,
-    request: requestBody,
-    response: fullContent,
-    usage: usage || null,
-  })
+  // Include credentials in the digest (never in logs or the cache key itself),
+  // so changing accounts, providers, models or prompts cannot reuse old results.
+  const key = createHash('sha256').update(JSON.stringify({ endpoint, apiKey, mode, to, requestBody })).digest('hex')
+  return { key, endpoint, apiKey, body: requestBody, withPhonetics }
 }
+
+const engine = createTranslationEngine({
+  prepare: prepareRequest,
+  execute: async (request, callbacks) => {
+    const started = performance.now()
+    const result = await readCompletion(request, callbacks)
+    appendRequestLog({ timestamp: new Date().toISOString(), url: request.endpoint,
+      request: request.body, response: result.raw, usage: result.usage || null,
+      durationMs: Math.round(performance.now() - started) })
+    return { text: result.text, phonetics: result.phonetics }
+  },
+})
+
+export const translate = engine.translate
+export const clearTranslationCache = engine.clearCache

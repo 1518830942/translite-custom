@@ -4,10 +4,8 @@ import type { WordPhonetics } from '../shared/phonetics'
 contextBridge.exposeInMainWorld('api', {
   platform: process.platform,
   translate: {
-    start: (text: string, to: string, mode?: string) => {
-      const id = Math.random().toString(36).slice(2)
+    start: (id: string, text: string, to: string, mode?: string) => {
       ipcRenderer.send('translate:start', { id, text, to, mode })
-      return id
     },
     onChunk: (id: string, callback: (chunk: string) => void) => {
       const listener = (_e: Electron.IpcRendererEvent, data: { id: string; chunk: string }) => {
@@ -36,6 +34,11 @@ contextBridge.exposeInMainWorld('api', {
       }
       ipcRenderer.on('translate:error', listener)
       return () => { ipcRenderer.removeListener('translate:error', listener) }
+    },
+    onCancelled: (id: string, callback: () => void) => {
+      const listener = (_e: Electron.IpcRendererEvent, data: { id: string }) => { if (data.id === id) callback() }
+      ipcRenderer.on('translate:cancelled', listener)
+      return () => { ipcRenderer.removeListener('translate:cancelled', listener) }
     },
     abort: (id: string) => { ipcRenderer.send('translate:abort', id) },
   },

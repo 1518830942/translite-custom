@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import TitleBar from './components/TitleBar'
 import InputPanel from './components/InputPanel'
 import ResultPanel from './components/ResultPanel'
@@ -7,7 +7,7 @@ import SettingsModal, { type ApiConfig } from './components/SettingsModal'
 import CloseBehaviorModal from './components/CloseBehaviorModal'
 import ShortcutSettingsModal from './components/ShortcutSettingsModal'
 import PromptSettingsModal from './components/PromptSettingsModal'
-import { translateStream } from './lib/translate'
+import { translateStream, type TranslationTask } from './lib/translate'
 import { getStore, setStore } from './lib/store'
 import { useTheme } from './lib/useTheme'
 import { detectLang, resolveTargetLang, type LanguageCode } from './lib/lang-detect'
@@ -39,7 +39,8 @@ export default function App() {
   const [result, setResult] = useState('')
   const [phonetics, setPhonetics] = useState<WordPhonetics | null>(null)
   const [loading, setLoading] = useState(false)
-  const [pendingClipboard, setPendingClipboard] = useState<string | null>(null)
+  const activeTask = useRef<TranslationTask | null>(null)
+  const generation = useRef(0)
   const [error, setError] = useState<string | null>(null)
   const [alwaysOnTop, setAlwaysOnTop] = useState(true)
   const [preferredLanguage, setPreferredLanguage] = useState<LanguageCode>(defaultPreferredLanguage)
@@ -94,21 +95,17 @@ export default function App() {
     })
   }, [])
 
-  useEffect(() => {
-    return window.api.window.onSetInputFromClipboard((text) => {
-      if (!text.trim()) return
-      setInput(text)
-      setPendingClipboard(text)
-    })
-  }, [])
-
   const handleSubmit = useCallback((mode: TranslateMode = 'translate', text = input) => {
-    if (!text.trim() || loading) return
+    if (!text.trim()) return
+    const current = ++generation.current
     setResult('')
     setPhonetics(null)
     setError(null)
 
     if (!hasValidTranslateSource(apiConfig)) {
+      activeTask.current?.cancel()
+      activeTask.current = null
+      setLoading(false)
       setResult('请配置翻译源')
       return
     }
@@ -116,21 +113,28 @@ export default function App() {
     setLoading(true)
 
     const to = resolveTargetLang(detectLang(text), preferredLanguage, fallbackLanguage)
-    translateStream(text, to, (chunk) => {
-      setResult((prev) => prev + chunk)
-    }, mode, setPhonetics)
-      .then(() => setLoading(false))
+    const task = translateStream(text, to, (chunk) => {
+      if (generation.current === current) setResult((prev) => prev + chunk)
+    }, mode, value => { if (generation.current === current) setPhonetics(value) })
+    activeTask.current = task
+    void task.promise
       .catch((err) => {
-        setError(err.message)
-        setLoading(false)
+        if (generation.current === current && err.name !== 'AbortError') setError(err.message)
       })
-  }, [input, loading, preferredLanguage, fallbackLanguage, apiConfig])
+      .finally(() => {
+        if (generation.current === current) { activeTask.current = null; setLoading(false) }
+      })
+  }, [input, preferredLanguage, fallbackLanguage, apiConfig])
 
   useEffect(() => {
-    if (pendingClipboard === null || loading) return
-    setPendingClipboard(null)
-    handleSubmit('translate', pendingClipboard)
-  }, [pendingClipboard, loading, handleSubmit])
+    return window.api.window.onSetInputFromClipboard((text) => {
+      if (!text.trim()) return
+      setInput(text)
+      handleSubmit('translate', text)
+    })
+  }, [handleSubmit])
+
+  useEffect(() => () => { generation.current++; activeTask.current?.cancel() }, [])
 
   function handleToggleAlwaysOnTop() {
     const next = !alwaysOnTop
@@ -214,7 +218,7 @@ export default function App() {
         onClose={handleClose}
         onQuit={() => window.api.window.quit()}
       />
-      <InputPanel value={input} onChange={handleInputChange} onSubmit={handleSubmit} loading={loading} />
+      <InputPanel value={input} onChange={handleInputChange} onSubmit={handleSubmit} onCancel={() => activeTask.current?.cancel()} loading={loading} />
       <ResultPanel result={result} phonetics={phonetics} loading={loading} error={error} />
       <Toolbar
         theme={theme}
