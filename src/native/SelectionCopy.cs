@@ -44,16 +44,13 @@ public static class SelectionCopy
     }
 
     // Only a confirmed empty selection skips copying; unsupported providers fall back.
-    static bool TryHasSelection(out bool hasSelection)
+    static SelectionProbe.State ReadSelection()
     {
-        bool selected = false;
-        bool known = false;
+        var state = SelectionProbe.State.Unknown;
         var worker = new Thread(() => {
             try
             {
-                bool? value = SelectionProbe.Read();
-                selected = value.GetValueOrDefault();
-                known = value.HasValue;
+                state = SelectionProbe.Read();
             }
             catch (Exception) { /* Unsupported or busy provider: use the existing copy path. */ }
         });
@@ -61,8 +58,7 @@ public static class SelectionCopy
         worker.SetApartmentState(ApartmentState.MTA);
         worker.Start();
         bool completed = worker.Join(350);
-        hasSelection = completed && selected;
-        return completed && known;
+        return completed ? state : SelectionProbe.State.Unknown;
     }
 
     public static string Capture()
@@ -77,13 +73,32 @@ public static class SelectionCopy
             Thread.Sleep(10);
         }
         if (GetForegroundWindow() != foreground) return null;
-        bool hasSelection;
-        if (TryHasSelection(out hasSelection))
+        var selection = ReadSelection();
+        if (GetForegroundWindow() != foreground) return null;
+        if (selection == SelectionProbe.State.Menu)
         {
+            // Releasing Alt before the shortcut letter can leave the source's
+            // menu focused. Escape only a confirmed menu, never the document:
+            // editors may clear a normal selection on Escape.
+            var escape = new[] { Key(0x1B, false), Key(0x1B, true) };
+            if (SendInput(2, escape, Marshal.SizeOf(typeof(Input))) != 2) return null;
+            Thread.Sleep(20);
             if (GetForegroundWindow() != foreground) return null;
-            if (!hasSelection) return null;
+            selection = ReadSelection();
+            if (selection == SelectionProbe.State.Menu) return null;
         }
         if (GetForegroundWindow() != foreground) return null;
+        if (selection == SelectionProbe.State.Empty) return null;
+        // Legacy menu filters (for example WinForms MenuStrip) can consume copy
+        // while UIA still reports the old edit control without a TextPattern.
+        // Alt-down exits that mode; holding Ctrl before Alt-up prevents reentry.
+        if (selection == SelectionProbe.State.Unknown)
+        {
+            var reset = new[] { Key(0x12, false), Key(0x11, false), Key(0x12, true), Key(0x11, true) };
+            if (SendInput(4, reset, Marshal.SizeOf(typeof(Input))) != 4) return null;
+            Thread.Sleep(20);
+            if (GetForegroundWindow() != foreground) return null;
+        }
         uint sequence = GetClipboardSequenceNumber();
         var inputs = new[] { Key(0x11, false), Key(0x43, false), Key(0x43, true), Key(0x11, true) };
         if (SendInput((uint)inputs.Length, inputs, Marshal.SizeOf(typeof(Input))) != inputs.Length)

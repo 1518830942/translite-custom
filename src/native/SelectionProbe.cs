@@ -6,6 +6,8 @@ using System.Runtime.InteropServices;
 // the legacy .NET UIAutomation text-range bridge used by newer browser providers.
 internal static class SelectionProbe
 {
+    public enum State { Unknown, Empty, Selected, Menu }
+
     [ComImport, Guid("30cbe57d-d9d0-452a-ab13-7ac5ac4825ee"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
     interface Automation
     {
@@ -45,7 +47,7 @@ internal static class SelectionProbe
         int CompareEndpoints(int start, Range range, int end);
     }
 
-    public static bool? Read()
+    public static State Read()
     {
         var automation = (Automation)Activator.CreateInstance(Type.GetTypeFromCLSID(
             new Guid("ff48dba4-60ef-4201-aa87-54103eef594e")));
@@ -53,7 +55,13 @@ internal static class SelectionProbe
         var walker = automation.GetControlViewWalker();
         for (int depth = 0; element != null && depth < 8; depth++)
         {
-            if (Equals(element.GetCurrentPropertyValue(30019), true)) return null; // IsPassword
+            // Alt release can focus a menu instead of the selected document.
+            // Chromium exposes its native menu bar as a Pane named by class.
+            int controlType = Convert.ToInt32(element.GetCurrentPropertyValue(30003));
+            if (controlType == 50009 || controlType == 50010 || controlType == 50011 ||
+                Equals(element.GetCurrentPropertyValue(30012), "MenuBar"))
+                return State.Menu;
+            if (Equals(element.GetCurrentPropertyValue(30019), true)) return State.Unknown; // IsPassword
             if (Equals(element.GetCurrentPropertyValue(30040), true)) // IsTextPatternAvailable
             {
                 var pattern = (TextPattern)element.GetCurrentPattern(10014);
@@ -63,13 +71,13 @@ internal static class SelectionProbe
                     if (ranges != null) for (int i = 0; i < ranges.GetLength(); i++)
                     {
                         var range = ranges.GetElement(i);
-                        if (range.CompareEndpoints(0, range, 1) != 0) return true;
+                        if (range.CompareEndpoints(0, range, 1) != 0) return State.Selected;
                     }
-                    return false;
+                    return State.Empty;
                 }
             }
             element = walker.GetParentElement(element);
         }
-        return null;
+        return State.Unknown;
     }
 }
